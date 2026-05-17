@@ -1,7 +1,7 @@
-# AeroSim – Full Developer Specification
+# AeroSim – Full Developer Specification v2
 
-> **Course:** Paradygmaty Programowania | **Language:** C# (.NET 8)  
-> **Target size:** ~9,000–10,000 LOC | **Type:** Real-time console game / flight simulator  
+> **Course:** Paradygmaty Programowania | **Language:** C# (.NET 8)
+> **Target size:** ~10,000–12,000 LOC | **Type:** Real-time console game / flight simulator
 > **Design patterns used:** State, Strategy, Observer, Command, MVC, Factory, Singleton
 
 ---
@@ -10,74 +10,96 @@
 
 1. [Project Overview & Gameplay](#1-project-overview--gameplay)
 2. [Directory Structure](#2-directory-structure)
-3. [Module: Core/Aircraft](#3-module-coreaircraftcore)
-4. [Module: Core/States (Pattern: State)](#4-module-corestates--pattern-state)
-5. [Module: Core/Strategies (Pattern: Strategy)](#5-module-corestrategies--pattern-strategy)
-6. [Module: Core/Events (Pattern: Observer)](#6-module-coreevents--pattern-observer)
-7. [Module: Core/Commands (Pattern: Command)](#7-module-corecommands--pattern-command)
-8. [Module: Controllers (MVC – Controller)](#8-module-controllers--mvc-controller)
-9. [Module: Views (MVC – View)](#9-module-views--mvc-view)
-10. [Module: Infrastructure](#10-module-infrastructure)
-11. [Gameplay Loop & Input Map](#11-gameplay-loop--input-map)
-12. [Black Box & Flight Logging](#12-black-box--flight-logging)
-13. [Implementation Roadmap](#13-implementation-roadmap)
-14. [Team Task Split](#14-team-task-split)
-15. [LOC Estimate per Module](#15-loc-estimate-per-module)
-16. [Grading Checklist](#16-grading-checklist)
+3. [Cascade Damage System](#3-cascade-damage-system)
+4. [Module: Core/Aircraft](#4-module-coreaircraftcore)
+5. [Module: Core/Sensors](#5-module-coresensors)
+6. [Module: Core/States (Pattern: State)](#6-module-corestates--pattern-state)
+7. [Module: Core/Strategies (Pattern: Strategy)](#7-module-corestrategies--pattern-strategy)
+8. [Module: Core/Events (Pattern: Observer)](#8-module-coreevents--pattern-observer)
+9. [Module: Core/Commands (Pattern: Command)](#9-module-corecommands--pattern-command)
+10. [Module: Controllers (MVC – Controller)](#10-module-controllers--mvc-controller)
+11. [Module: Views (MVC – View)](#11-module-views--mvc-view)
+12. [Module: Infrastructure](#12-module-infrastructure)
+13. [Gameplay Loop & Input Map](#13-gameplay-loop--input-map)
+14. [Black Box & Flight Logging](#14-black-box--flight-logging)
+15. [Implementation Roadmap](#15-implementation-roadmap)
+16. [Team Task Split](#16-team-task-split)
+17. [LOC Estimate per Module](#17-loc-estimate-per-module)
+18. [Grading Checklist](#18-grading-checklist)
 
 ---
 
 ## 1. Project Overview & Gameplay
 
-AeroSim is a **real-time console flight simulator** controlled entirely via keyboard. The player pilots an aircraft through a full flight cycle — engine startup, taxi, takeoff, climb, cruise, descent, approach, and landing — while reacting to random in-flight events such as engine failures, severe turbulence, and electrical outages.
+AeroSim is a **real-time console flight simulator** controlled entirely via keyboard. The player selects an aircraft, pilots it from startup through a full flight cycle, and reacts to cascading real-time failures. Systems affect each other — a bird strike can cause an engine explosion, which starts a fire, which spreads and melts the wing, which asymmetrically drags the aircraft, which eventually causes loss of control. Nothing happens in isolation.
 
 ### Gameplay summary
 
 ```
 [STARTUP SCREEN]
-  Select aircraft → Boeing 737-800 / Airbus A320 / Cessna 172
-  Select difficulty → Easy (no anomalies) / Normal / Hard (all anomalies)
+  1. Select aircraft  → Boeing 737-800 / Airbus A320 / Cessna 172
+  2. Select route     → short (30 min) / medium (1 hr) / long (2 hr)
+  3. Select difficulty → Easy / Normal / Hard
 
-[MAIN LOOP – runs at 10 Hz]
-  ┌─────────────────────────────────────────────────────────┐
-  │  aircraft.Update(deltaT)          ← physics simulation  │
-  │  anomalyEngine.Tick(deltaT)       ← random events       │
-  │  view.Render(aircraft)            ← redraws console UI  │
-  │  input = inputHandler.Poll()      ← reads keyboard      │
-  │  controller.Execute(input)        ← dispatches command  │
-  └─────────────────────────────────────────────────────────┘
+[MAIN LOOP – 10 Hz]
+  aircraft.Update(deltaT)       <- physics, fuel burn, cascade damage
+  sensorSystem.Update(deltaT)   <- sensors read real values (may be wrong)
+  anomalyEngine.Tick(deltaT)    <- random events, cascade triggers
+  view.Render(aircraft)         <- full dashboard redraw
+  input = inputHandler.Poll()   <- non-blocking keyboard check
+  controller.Execute(input)     <- dispatch command
 
-[EVENTS]
-  Random anomalies pop up mid-flight with a WARNING banner.
-  Player must press the correct key to respond (e.g. [R] Restart Engine).
-  Unresolved critical anomalies → crash (game over).
+[EVENTS — cascade chain examples]
+  Bird strike  ->  engine damage  ->  engine fire  ->  wing fire
+               ->  wing melting   ->  asymmetric drag -> loss of control
+               ->  black box GAME OVER
+
+  Turbulence   ->  altitude oscillations  ->  sensor noise on altimeter
+               ->  autopilot confusion    ->  wrong altitude held
+               ->  CFIT (ground collision if not corrected)
+
+  Fuel leak    ->  fuel critical          ->  both engines flame out
+               ->  emergency descent      ->  forced landing
 
 [END OF FLIGHT]
-  Flight Report printed: duration, fuel used, anomalies handled,
-  landing score, full command history (black box).
+  Full flight report + black box printout
 ```
 
-### Console dashboard layout (ASCII)
+### Console dashboard layout
 
 ```
-+==================================================================+
-| ✈ AeroSim  |  SP-LRA  Boeing 737-800  |  FLT TIME: 01:14:32     |
-| STATE: [CRUISE]                        |  AUTOPILOT: ON          |
-+==============+==============+===========+========================+
-| ALT: 35000ft | SPD: 461 kts | HDG: 087° | V/S:    0 ft/min       |
-| THR:  78%    | RPM:  92%    | GFR: 1.0g | TEMP: 745°C            |
-+==============+==============+===========+========================+
-| FUEL [████████████░░░░] 68%  12,400 kg         RANGE: ~2100 km  |
-+------------------------------------------------------------------+
-| SYSTEMS:  ENG1 [OK]  ENG2 [OK]  HYD [OK]  ELEC [98%]  NAV [OK] |
-+------------------------------------------------------------------+
-| WEATHER: THUNDERSTORM  |  WIND: 270°/45 kts  |  TURBULENCE: HIGH|
-+------------------------------------------------------------------+
-| !! ALERT: ENGINE 1 TEMPERATURE HIGH (845°C) – reduce throttle !!|
-+------------------------------------------------------------------+
-| CONTROLS: [W/S] Throttle  [A/D] Heading  [Q] Autopilot          |
-|           [SPACE] Next Phase  [E] Emergency  [R] Resolve  [ESC] |
-+==================================================================+
++====================================================================+
+| AeroSim  SP-LRA  Boeing 737-800          FLT TIME: 01:14:32       |
+| STATE: [CRUISE]               AUTOPILOT: ON    DIFFICULTY: NORMAL  |
++===============+===============+===============+====================+
+| ALT:  35000ft | SPD:  461 kts | HDG:   087 deg| V/S:    0 ft/min  |
+| THR:   78%    | RPM:   92%    | GFR:   1.0 g  | TEMP:  745 C      |
++===============+===============+===============+====================+
+| FUEL  [############........]  68%   12400 kg      RANGE: ~2100 km |
++--------------------------------------------------------------------+
+| SYSTEMS:                                                           |
+|  ENG1 [OK  100%]  ENG2 [OK  100%]  FUEL [OK]   HYD [OK]          |
+|  ELEC [OK   98%]  NAV  [OK]        AP   [ON]    WING [OK]         |
++--------------------------------------------------------------------+
+|  SENSORS:                                                          |
+|  ALT-SNS [OK]  SPD-SNS [OK]  ENG-SNS [FAULT - reading: 0 RPM]    |
++--------------------------------------------------------------------+
+| MAP:                    WEATHER: THUNDERSTORM                      |
+| ..........*.....        WIND: 270 / 45 kts   TURB: HIGH           |
+| .....A..........        GUST: 62 kts         VIS: 400 m           |
+| .................                                                   |
++--------------------------------------------------------------------+
+| VIEW: pitch -2.0  roll +1.5                                        |
+|  sky sky sky sky sky sky sky sky sky sky sky sky                  |
+|  ------- horizon ------- A ------- horizon -------                 |
+|  gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd                  |
++--------------------------------------------------------------------+
+| !! ALERT: ENGINE 1 BIRD STRIKE -- check RPM sensor               !!|
+| !! WARNING: SENSOR FAULT on ENG-SNS1 -- readings unreliable      !!|
++--------------------------------------------------------------------+
+| [W/S] Throttle  [A/D] Heading  [Q] Autopilot  [R] Resolve anomaly |
+| [SPACE] Next phase  [E] Emergency  [L] Gear  [F/G] Flaps  [ESC]   |
++====================================================================+
 ```
 
 ---
@@ -92,6 +114,7 @@ AeroSim/
 │   │   ├── FlightData.cs
 │   │   ├── FlightDataSnapshot.cs
 │   │   ├── AircraftConfig.cs
+│   │   ├── DamageModel.cs              <- tracks cascade state for whole aircraft
 │   │   ├── Systems/
 │   │   │   ├── IAvionicSystem.cs
 │   │   │   ├── EngineSystem.cs
@@ -100,11 +123,23 @@ AeroSim/
 │   │   │   ├── HydraulicSystem.cs
 │   │   │   ├── ElectricalSystem.cs
 │   │   │   ├── WeatherSystem.cs
-│   │   │   └── AutopilotSystem.cs
+│   │   │   ├── AutopilotSystem.cs
+│   │   │   └── WingSystem.cs           <- NEW: wing integrity, fire spread
+│   │   ├── Sensors/
+│   │   │   ├── ISensor.cs              <- NEW
+│   │   │   ├── Sensor.cs               <- NEW: base sensor with noise/fault
+│   │   │   ├── SensorSystem.cs         <- NEW: holds all sensors
+│   │   │   ├── AltitudeSensor.cs       <- NEW
+│   │   │   ├── AirspeedSensor.cs       <- NEW
+│   │   │   ├── EngineSensor.cs         <- NEW (RPM + temp per engine)
+│   │   │   ├── FuelSensor.cs           <- NEW
+│   │   │   └── HydraulicSensor.cs      <- NEW
 │   │   └── Enums/
 │   │       ├── SystemType.cs
 │   │       ├── SystemStatus.cs
-│   │       └── Severity.cs
+│   │       ├── Severity.cs
+│   │       ├── FireState.cs            <- NEW: None / Burning / Spreading / Melting
+│   │       └── SensorState.cs          <- NEW: OK / Noisy / Fault / Dead
 │   ├── States/
 │   │   ├── IAircraftState.cs
 │   │   ├── GroundState.cs
@@ -122,15 +157,18 @@ AeroSim/
 │   │   │   ├── IAnomaly.cs
 │   │   │   ├── AbstractAnomaly.cs
 │   │   │   ├── EngineFailureAnomaly.cs
-│   │   │   ├── BirdStrikeAnomaly.cs
+│   │   │   ├── BirdStrikeAnomaly.cs    <- UPDATED: triggers engine explosion chain
+│   │   │   ├── EngineFireAnomaly.cs    <- NEW: fire that spreads
+│   │   │   ├── WingFireAnomaly.cs      <- NEW: wing melts, asymmetric drag
 │   │   │   ├── HydraulicFailureAnomaly.cs
 │   │   │   ├── FuelLeakAnomaly.cs
 │   │   │   ├── ElectricalFailureAnomaly.cs
 │   │   │   ├── DecompressionAnomaly.cs
-│   │   │   ├── TurbulenceAnomaly.cs
+│   │   │   ├── TurbulenceAnomaly.cs    <- UPDATED: causes sensor noise
 │   │   │   ├── IcingAnomaly.cs
 │   │   │   ├── RunwayIncursionAnomaly.cs
-│   │   │   └── MicroburstAnomaly.cs
+│   │   │   ├── MicroburstAnomaly.cs
+│   │   │   └── SensorFailureAnomaly.cs <- NEW
 │   │   └── Weather/
 │   │       ├── IWeatherStrategy.cs
 │   │       ├── ClearSkiesStrategy.cs
@@ -147,6 +185,7 @@ AeroSim/
 │   │       ├── FlightLoggerHandler.cs
 │   │       ├── AlertSystemHandler.cs
 │   │       ├── BlackBoxHandler.cs
+│   │       ├── CascadeHandler.cs       <- NEW: listens for events, triggers cascades
 │   │       └── StatisticsHandler.cs
 │   └── Commands/
 │       ├── IFlightCommand.cs
@@ -157,7 +196,8 @@ AeroSim/
 │       ├── ToggleAutopilotCommand.cs
 │       ├── ActivateSystemCommand.cs
 │       ├── ResolveAnomalyCommand.cs
-│       └── EmergencyDeclareCommand.cs
+│       ├── EmergencyDeclareCommand.cs
+│       └── GoAroundCommand.cs
 ├── Controllers/
 │   ├── FlightController.cs
 │   ├── InputHandler.cs
@@ -165,15 +205,19 @@ AeroSim/
 ├── Views/
 │   ├── IFlightView.cs
 │   ├── ConsoleDashboardView.cs
-│   ├── StartupScreen.cs
+│   ├── StartupScreen.cs              <- UPDATED: aircraft select + route + difficulty
 │   ├── FlightReportView.cs
+│   ├── BlackBoxReadoutView.cs        <- NEW: prints black box after game over
 │   └── Components/
 │       ├── AltimeterWidget.cs
 │       ├── AirspeedWidget.cs
 │       ├── FuelGaugeWidget.cs
 │       ├── SystemsPanelWidget.cs
+│       ├── SensorsPanelWidget.cs     <- NEW
 │       ├── AlertsBarWidget.cs
-│       └── ActionMenuWidget.cs
+│       ├── ActionMenuWidget.cs
+│       ├── FlightMapWidget.cs        <- NEW: ASCII grid with plane + birds/weather
+│       └── CockpitWindowWidget.cs    <- NEW: ASCII horizon / sky / ground view
 ├── Infrastructure/
 │   ├── SimulationConfig.cs
 │   ├── FlightLogger.cs
@@ -186,13 +230,60 @@ AeroSim/
 
 ---
 
-## 3. Module: Core/Aircraft
+## 3. Cascade Damage System
+
+This is the core design decision that makes the simulation interesting. **Systems affect each other.** Every major failure can trigger secondary and tertiary consequences.
+
+### 3.1 Cascade rules (implemented in `CascadeHandler.cs`)
+
+`CascadeHandler` subscribes to all `SystemFailureEvent` and `AnomalyTriggeredEvent` on the EventBus. When it receives one, it checks the following table and may trigger further events or anomalies.
+
+| Trigger event | Condition | Cascade effect |
+|---|---|---|
+| `BirdStrikeAnomaly` triggered | always | Engine health drops -30%. Roll dice: 40% chance → `EngineFireAnomaly` triggered |
+| `EngineFireAnomaly` triggered | always | Engine health decays -2%/sec. Roll dice every 10s: 30% chance fire spreads → `WingFireAnomaly` |
+| `WingFireAnomaly` triggered | always | `WingSystem` starts melting. At 50% wing health → `ElectricalSystem` loses power (wiring burns). At 20% wing health → `AsymmetricDragActive = true` on `FlightData`. At 0% wing health → `CriticalState` forced, black box GAME OVER |
+| `EngineSystem.Health` reaches 0 | engine was on fire | Explosion: `GForce` spike +3g, `WingSystem.ApplyDamage(0.4)`, sensor for that engine → `Dead` |
+| `EngineSystem.Health` reaches 0 | engine was NOT on fire | Flame-out only: RPM = 0, no explosion |
+| `AsymmetricDragActive = true` | wing health < 20% | Each tick: aircraft `Heading` drifts toward damaged side by `drift = (1 - wingHealth) * 5 deg/sec`. Player must constantly counter with opposite rudder |
+| `TurbulenceAnomaly` triggered | severity >= Medium | All sensors get `AddNoise(0.15)` for duration of turbulence. Autopilot may lock onto wrong altitude |
+| `TurbulenceAnomaly` triggered | severity == Critical | Random sensor(s) enter `Fault` state |
+| `FuelLeakAnomaly` triggered | leak rate > 150 kg/h | After 60s of unresolved leak → fuel ignition risk: 20% chance/min → `EngineFireAnomaly` |
+| `HydraulicFailureAnomaly` triggered | landing gear was mid-retract | Gear jams in half position → `HydraulicSystem.GearJammed = true`. Emergency extension still available |
+| `ElectricalFailureAnomaly` triggered | always | All sensors lose accuracy by -40%. `AutopilotSystem` goes offline. After 30s → secondary bus fails → `NavigationSystem` goes offline |
+| `DecompressionAnomaly` triggered | altitude > 25000ft | `SensorSystem` all oxygen-related sensors → `Fault`. Player sees garbled readings |
+| `SensorFailureAnomaly` triggered | sensor was altitude sensor | Autopilot reads wrong altitude → may climb into airspace limit or descend toward terrain |
+
+### 3.2 `DamageModel.cs`
+
+Central record of the aircraft's current damage state. Read by all systems and the view.
+
+| Property | Type | Description |
+|---|---|---|
+| `Engine1FireState` | `FireState` | None / Burning / Spreading / Melting |
+| `Engine2FireState` | `FireState` | same |
+| `WingFireState` | `FireState` | None / Burning / Spreading / Melting |
+| `WingHealth` | `double` | 0.0–1.0 |
+| `AsymmetricDragActive` | `bool` | true when wing health < 20% |
+| `AsymmetricDragSide` | `string` | "LEFT" or "RIGHT" |
+| `DriftDegPerSec` | `double` | heading drift rate when asymmetric drag active |
+| `IsExploded` | `bool` | true after engine explodes |
+| `IsGameOver` | `bool` | true when wing reaches 0 or other fatal condition |
+| `GameOverReason` | `string` | e.g. "Wing structural failure", "Both engines failed" |
+
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `Update(double dt)` | `dt` – seconds | `void` | Advances fire spread, wing melt, drift calculations |
+| `ApplyFire(FireLocation loc, double dt)` | location + time | `void` | Advances `FireState` for given location |
+| `CheckGameOver()` | — | `bool` | Returns true and sets `GameOverReason` if fatal condition met |
 
 ---
 
-### 3.1 `Aircraft.cs`
+## 4. Module: Core/Aircraft
 
-Central domain class. Aggregates all avionics systems and the current state machine.  
+### 4.1 `Aircraft.cs`
+
+Central domain class. Aggregates all avionics systems, sensor system, damage model, and current state.
 **Namespace:** `AeroSim.Core.Aircraft`
 
 #### Fields (private)
@@ -201,12 +292,16 @@ Central domain class. Aggregates all avionics systems and the current state mach
 |---|---|---|
 | `_currentState` | `IAircraftState` | Active state (State pattern) |
 | `_flightData` | `FlightData` | Live telemetry data |
-| `_engine` | `EngineSystem` | Engine system |
+| `_engine1` | `EngineSystem` | Left/primary engine |
+| `_engine2` | `EngineSystem` | Right engine |
 | `_navigation` | `NavigationSystem` | GPS / autopilot |
 | `_fuel` | `FuelSystem` | Fuel tanks and flow |
 | `_hydraulics` | `HydraulicSystem` | Gear, flaps, brakes |
 | `_electrical` | `ElectricalSystem` | Power buses |
 | `_weather` | `WeatherSystem` | Atmospheric data |
+| `_wing` | `WingSystem` | Wing integrity and fire |
+| `_sensors` | `SensorSystem` | All sensor readings |
+| `_damageModel` | `DamageModel` | Cascade damage state |
 | `_eventBus` | `EventBus` | Observer event bus |
 | `_config` | `AircraftConfig` | Static aircraft specs |
 
@@ -216,16 +311,18 @@ Central domain class. Aggregates all avionics systems and the current state mach
 |---|---|---|---|
 | `TailNumber` | `string` | get | Registration (e.g. "SP-LRA") |
 | `Model` | `string` | get | Aircraft model name |
-| `FlightData` | `FlightData` | get | Live telemetry (read-only ref) |
+| `FlightData` | `FlightData` | get | Live telemetry |
 | `CurrentState` | `IAircraftState` | get | Active state object |
 | `Config` | `AircraftConfig` | get | Static aircraft config |
 | `AllSystems` | `IReadOnlyList<IAvionicSystem>` | get | All avionics systems |
+| `Sensors` | `SensorSystem` | get | Sensor system (for view) |
+| `DamageModel` | `DamageModel` | get | Current cascade damage state |
 
 #### Constructor
 
 | Signature | Parameters | Description |
 |---|---|---|
-| `Aircraft(string tailNumber, string model, AircraftConfig config)` | `tailNumber` – registration string; `model` – display name; `config` – aircraft specs | Initializes all systems, sets initial state to `GroundState`, subscribes all default event handlers |
+| `Aircraft(string tailNumber, string model, AircraftConfig config)` | registration, name, specs | Initializes all systems and sensors, sets initial state to `GroundState`, wires up `CascadeHandler` on EventBus |
 
 #### Methods
 
@@ -237,463 +334,501 @@ Central domain class. Aggregates all avionics systems and the current state mach
 | `Land()` | — | `void` | Delegates to `_currentState.Land(this)` |
 | `DeclareEmergency()` | — | `void` | Delegates to `_currentState.HandleEmergency(this)` |
 | `Abort()` | — | `void` | Delegates to `_currentState.Abort(this)` |
-| `Update(double deltaT)` | `deltaT` – elapsed seconds since last frame | `void` | Main simulation tick. Calls state update, then updates all systems |
-| `TransitionTo(IAircraftState newState)` | `newState` – the next state to enter | `void` | Exits old state, enters new state, publishes `StateChangedEvent` |
-| `ApplyDamage(SystemType system, double severity)` | `system` – which system; `severity` – 0.0–1.0 | `void` | Calls `IAvionicSystem.ApplyDamage()` on the specified system |
-| `GetSystemStatus(SystemType system)` | `system` – enum value | `SystemStatus` | Returns current `SystemStatus` of specified system |
-| `GetSystemHealth(SystemType system)` | `system` – enum value | `double` | Returns health 0.0–1.0 of specified system |
-| `Subscribe(IFlightEventHandler handler)` | `handler` – event listener | `void` | Registers handler on `EventBus` |
-| `Publish(FlightEvent evt)` | `evt` – event to broadcast | `void` | Forwards event to `EventBus.Publish()` |
+| `Update(double deltaT)` | `deltaT` – elapsed seconds | `void` | Ticks all systems, sensors, damage model, applies asymmetric drag if active |
+| `TransitionTo(IAircraftState newState)` | `newState` – next state | `void` | Exits old state, enters new state, publishes `StateChangedEvent` |
+| `ApplyDamage(SystemType system, double severity)` | system + severity 0–1 | `void` | Calls `ApplyDamage()` on the correct system |
+| `GetSystemStatus(SystemType system)` | system enum | `SystemStatus` | Returns OK / Degraded / Failed |
+| `GetSystemHealth(SystemType system)` | system enum | `double` | Returns health 0.0–1.0 |
+| `Subscribe(IFlightEventHandler handler)` | handler | `void` | Registers on EventBus |
+| `Publish(FlightEvent evt)` | event | `void` | Forwards to EventBus |
 
 ---
 
-### 3.2 `FlightData.cs`
+### 4.2 `FlightData.cs`
 
-Mutable data bag holding all live telemetry values. Updated every simulation tick.  
-**Namespace:** `AeroSim.Core.Aircraft`
+Mutable data bag holding all live telemetry. Sensors read these real values and may return noisy/wrong versions to the player.
 
 #### Properties
 
 | Property | Type | Unit | Description |
 |---|---|---|---|
-| `Altitude` | `double` | feet | Current altitude MSL |
-| `Speed` | `double` | knots (IAS) | Indicated airspeed |
-| `TrueAirspeed` | `double` | knots | Computed from IAS + altitude |
+| `Altitude` | `double` | feet | True altitude MSL |
+| `Speed` | `double` | knots IAS | True indicated airspeed |
 | `VerticalSpeed` | `double` | ft/min | Rate of climb/descent |
 | `Heading` | `double` | degrees 0–360 | Magnetic heading |
-| `Latitude` | `double` | decimal degrees | GPS latitude |
-| `Longitude` | `double` | decimal degrees | GPS longitude |
-| `Throttle` | `double` | 0.0–1.0 | Engine throttle lever position |
-| `EngineRPM` | `double` | % | Engine RPM as percentage of max |
-| `EngineTempC` | `double` | Celsius | Engine exhaust gas temperature |
-| `FuelLevelKg` | `double` | kg | Current fuel mass |
-| `FuelFlowKgPerH` | `double` | kg/h | Current fuel burn rate |
-| `FuelCapacityKg` | `double` | kg | Maximum fuel capacity (from config) |
-| `WindSpeedKnots` | `double` | knots | Current wind speed |
-| `WindDirectionDeg` | `double` | degrees | Wind direction (from) |
+| `TargetHeading` | `double` | degrees | Player-set heading target |
+| `TargetAltitude` | `double` | feet | Player-set altitude target |
+| `TargetSpeed` | `double` | knots | Player-set speed target |
+| `MapX` | `double` | units | Position on 2D map grid |
+| `MapY` | `double` | units | Position on 2D map grid |
+| `Throttle` | `double` | 0.0–1.0 | Throttle lever position |
+| `Engine1RPM` | `double` | % | Engine 1 true RPM |
+| `Engine2RPM` | `double` | % | Engine 2 true RPM |
+| `Engine1TempC` | `double` | Celsius | Engine 1 true EGT |
+| `Engine2TempC` | `double` | Celsius | Engine 2 true EGT |
+| `FuelLevelKg` | `double` | kg | True fuel level |
+| `FuelFlowKgPerH` | `double` | kg/h | Current burn rate |
+| `FuelCapacityKg` | `double` | kg | Max capacity from config |
+| `WindSpeedKnots` | `double` | knots | True wind speed |
+| `WindDirectionDeg` | `double` | degrees | True wind direction |
 | `AirPressureHPa` | `double` | hPa | Barometric pressure |
 | `TemperatureC` | `double` | Celsius | Outside air temperature |
-| `FlightTime` | `TimeSpan` | — | Elapsed time since wheels-up |
+| `FlightTime` | `TimeSpan` | — | Elapsed since wheels-up |
 | `GForce` | `double` | g | Current G-loading |
-| `PitchAngleDeg` | `double` | degrees | Aircraft pitch attitude |
-| `RollAngleDeg` | `double` | degrees | Aircraft roll attitude |
+| `PitchAngleDeg` | `double` | degrees | Pitch attitude |
+| `RollAngleDeg` | `double` | degrees | Roll attitude |
+| `AsymmetricDrag` | `double` | 0.0–1.0 | How hard aircraft pulls sideways |
 
 #### Methods
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
 | `FuelRemainingPercent()` | — | `double` | `FuelLevelKg / FuelCapacityKg * 100` |
-| `EstimatedRangeKm()` | — | `double` | Calculates remaining range at current burn rate |
-| `IsStalling()` | — | `bool` | Returns `true` if speed below stall speed for current config |
-| `IsOverspeed()` | — | `bool` | Returns `true` if speed exceeds VMO/MMO |
-| `Snapshot()` | — | `FlightDataSnapshot` | Returns an immutable copy of all fields at this moment |
-| `ToTelemetryString()` | — | `string` | One-line CSV-style string for logging |
-| `Reset()` | — | `void` | Resets all values to ground defaults |
+| `EstimatedRangeKm()` | — | `double` | Range at current burn rate |
+| `IsStalling()` | — | `bool` | Speed below stall speed for current config |
+| `IsOverspeed()` | — | `bool` | Speed above VMO/MMO |
+| `Snapshot()` | — | `FlightDataSnapshot` | Immutable copy of all fields right now |
+| `ToTelemetryString()` | — | `string` | CSV line for black box |
+| `Reset()` | — | `void` | Resets to ground defaults |
+| `ApplyAsymmetricDrift(double driftDeg, double dt)` | drift rate + time | `void` | Pushes `Heading` toward damaged wing side |
 
 ---
 
-### 3.3 `FlightDataSnapshot.cs`
-
-Immutable record capturing a moment-in-time copy of `FlightData`. Used by `CommandHistory` and `BlackBoxHandler`.
-
-```csharp
-public record FlightDataSnapshot(
-    double Altitude, double Speed, double VerticalSpeed, double Heading,
-    double Throttle, double EngineRPM, double EngineTempC,
-    double FuelLevelKg, double GForce, double PitchAngleDeg, double RollAngleDeg,
-    TimeSpan FlightTime, DateTime CapturedAt
-);
-```
-
----
-
-### 3.4 `AircraftConfig.cs`
-
-Immutable record holding static aircraft performance parameters.
+### 4.3 `AircraftConfig.cs`
 
 ```csharp
 public record AircraftConfig
 {
-    public double MaxFuelKg        { get; init; }
-    public double MaxAltitudeFt    { get; init; }
-    public double CruiseSpeedKts   { get; init; }
-    public double MaxSpeedKts      { get; init; }  // VMO
-    public double StallSpeedKts    { get; init; }  // clean config
-    public double StallSpeedFlaps  { get; init; }  // flaps extended
-    public int    EngineCount      { get; init; }
-    public double MaxThrustKN      { get; init; }  // total
-    public double MaxAltitudeClimbRateFtMin { get; init; }
-    public double NormalDescentRateFtMin    { get; init; }
-    public double V1SpeedKts       { get; init; }  // decision speed
-    public double VRSpeedKts       { get; init; }  // rotation speed
-    public double V2SpeedKts       { get; init; }  // takeoff safety speed
-    public double MaxCrosswindKts  { get; init; }
+    public string DisplayName       { get; init; }
+    public string TailNumber        { get; init; }
+    public double MaxFuelKg         { get; init; }
+    public double MaxAltitudeFt     { get; init; }
+    public double CruiseSpeedKts    { get; init; }
+    public double MaxSpeedKts       { get; init; }   // VMO
+    public double StallSpeedKts     { get; init; }   // clean
+    public double StallSpeedFlaps   { get; init; }   // flaps full
+    public int    EngineCount       { get; init; }
+    public double MaxThrustKN       { get; init; }
+    public double MaxClimbRateFtMin { get; init; }
+    public double NormalDescentFtMin{ get; init; }
+    public double V1SpeedKts        { get; init; }
+    public double VRSpeedKts        { get; init; }
+    public double V2SpeedKts        { get; init; }
+    public double MaxCrosswindKts   { get; init; }
+    public double FuelBurnKgPerH    { get; init; }   // at cruise
+    public double WingStrength      { get; init; }   // how fast wing melts (0.5–1.0)
 }
 ```
 
 ---
 
-### 3.5 `IAvionicSystem.cs`
-
-Interface that every avionics system must implement.
+### 4.4 `IAvionicSystem.cs`
 
 | Method / Property | Parameters | Returns | Description |
 |---|---|---|---|
-| `Name` (property) | — | `string` | Display name (e.g. "ENGINE 1") |
-| `Status` (property) | — | `SystemStatus` | `OK`, `Degraded`, `Failed` |
-| `Health` (property) | — | `double` | 0.0 (destroyed) to 1.0 (perfect) |
-| `Update(double deltaT, FlightData data)` | `deltaT` – seconds; `data` – current telemetry | `void` | Simulate one tick of this system |
-| `ApplyDamage(double severity)` | `severity` – 0.0–1.0 | `void` | Reduces `Health` by `severity`, may change `Status` |
-| `Repair(double amount)` | `amount` – 0.0–1.0 | `void` | Restores `Health` by `amount`, clamps to 1.0 |
-| `GenerateReport()` | — | `SystemReport` | Returns structured report with health, status, recent errors |
+| `Name` | — | `string` | Display name |
+| `Status` | — | `SystemStatus` | OK / Degraded / Failed |
+| `Health` | — | `double` | 0.0–1.0 |
+| `Update(double deltaT, FlightData data)` | dt + telemetry | `void` | One simulation tick |
+| `ApplyDamage(double severity)` | 0.0–1.0 | `void` | Reduces Health |
+| `Repair(double amount)` | 0.0–1.0 | `void` | Restores Health, clamps to 1.0 |
+| `GenerateReport()` | — | `SystemReport` | Health, status, recent errors |
 
 ---
 
-### 3.6 Avionics System Classes
+### 4.5 `WingSystem.cs` (NEW)
 
-All implement `IAvionicSystem`. Only non-obvious methods listed.
-
-#### `EngineSystem.cs`
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `Start()` | — | `bool` | Attempts engine start. Returns `false` if health < 0.2 or fuel empty |
-| `Stop()` | — | `void` | Cuts fuel to engine, RPM decays to 0 |
-| `Restart()` | — | `bool` | In-flight restart attempt. Success depends on health and altitude |
-| `CoolDown(double deltaT)` | `deltaT` – seconds | `void` | Decreases `EngineTempC` when throttle is reduced |
-| `CalculateThrust(double throttle)` | `throttle` – 0.0–1.0 | `double` | Returns thrust in kN based on throttle, health, and altitude |
-| `IsOverheating` (property) | — | `bool` | `true` if `EngineTempC > 900` |
-| `ThrustKN` (property) | — | `double` | Current actual thrust output in kN |
-
-#### `FuelSystem.cs`
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `Refuel(double kg)` | `kg` – amount to add | `void` | Adds fuel, clamps to `MaxFuelKg` |
-| `Burn(double kgPerH, double deltaT)` | `kgPerH` – burn rate; `deltaT` – seconds | `void` | Reduces `FuelLevelKg`, publishes `FuelLowEvent` at 15% |
-| `StartLeak(double rateKgPerH)` | `rateKgPerH` – leak rate | `void` | Activates a fuel leak with given rate |
-| `SealLeak()` | — | `bool` | Attempts to seal active leak. Returns `false` if system health < 0.3 |
-| `EmergencyDump()` | — | `void` | Rapidly dumps fuel to reduce landing weight |
-| `LeakRate` (property) | — | `double` | Current kg/h being lost to leak (0 if none) |
-| `IsLeaking` (property) | — | `bool` | `true` if active leak exists |
-
-#### `NavigationSystem.cs`
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `SetWaypoint(double lat, double lon)` | GPS coordinates | `void` | Sets next navigation waypoint |
-| `CalculateBearing(double toLat, double toLon)` | target coordinates | `double` | Returns bearing in degrees to target |
-| `DistanceToWaypointKm()` | — | `double` | Returns km to current waypoint |
-| `EngageAutopilot()` | — | `bool` | Engages autopilot if health OK. Returns success |
-| `DisengageAutopilot()` | — | `void` | Disengages autopilot |
-| `IsAutopilotEngaged` (property) | — | `bool` | Autopilot status |
-
-#### `HydraulicSystem.cs`
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `DeployGear()` | — | `bool` | Extends landing gear. Returns `false` if hydraulics failed |
-| `RetractGear()` | — | `bool` | Retracts landing gear |
-| `EmergencyGearExtension()` | — | `void` | Gravity-drops gear without hydraulics (always succeeds) |
-| `SetFlaps(int position)` | `position` – 0 to 5 | `void` | Sets flap position (0=up, 5=full) |
-| `IsGearDown` (property) | — | `bool` | Landing gear position |
-| `FlapsPosition` (property) | — | `int` | Current flap setting 0–5 |
-| `Pressure` (property) | — | `double` | Hydraulic pressure in PSI |
-
-#### `ElectricalSystem.cs`
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `SwitchToBackupBattery()` | — | `void` | Routes power from backup batteries |
-| `SwitchToAPU()` | — | `bool` | Starts APU. Returns `false` if APU unavailable |
-| `GetBusPower(BusType bus)` | `bus` – Main, Secondary, Emergency | `double` | Returns voltage on given bus |
-| `IsSystemPowered(SystemType sys)` | `sys` – system to check | `bool` | Returns whether given system has power |
-| `PowerLevel` (property) | — | `double` | Overall power level 0.0–1.0 |
-
-#### `AutopilotSystem.cs`
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `Engage(AutopilotMode mode)` | `mode` – ALT_HOLD, HDG, LNAV, VNAV, APPROACH | `bool` | Engages specified autopilot mode |
-| `Disengage()` | — | `void` | Fully disconnects autopilot |
-| `SetTargetAltitude(double feet)` | `feet` – target altitude | `void` | Sets altitude hold target |
-| `SetTargetHeading(double degrees)` | `degrees` – target heading | `void` | Sets heading bug |
-| `SetTargetSpeed(double knots)` | `knots` – target IAS | `void` | Sets autothrottle target |
-| `Update(double deltaT, FlightData data)` | — | `void` | Computes and applies control corrections |
-| `ActiveMode` (property) | — | `AutopilotMode` | Currently active mode |
-
----
-
-## 4. Module: Core/States – Pattern: State
-
-The State pattern allows `Aircraft` to change its behavior completely based on the current flight phase without any `if/switch` chains. Each state is a self-contained class.
-
-### 4.1 `IAircraftState.cs`
+Tracks wing structural integrity and fire spread.
 
 | Method / Property | Parameters | Returns | Description |
 |---|---|---|---|
-| `StateName` (property) | — | `string` | Display name (e.g. "CRUISE") |
-| `StateDescription` (property) | — | `string` | One-line description for UI |
-| `StateColor` (property) | — | `ConsoleColor` | Color for dashboard header |
-| `AllowedActions` (property) | — | `IReadOnlyList<string>` | Actions available in this state (for ActionMenuWidget) |
-| `TakeOff(Aircraft ctx)` | `ctx` – the aircraft | `void` | Handle takeoff request |
-| `Cruise(Aircraft ctx)` | `ctx` – the aircraft | `void` | Handle cruise transition |
-| `Descend(Aircraft ctx)` | `ctx` – the aircraft | `void` | Handle descent request |
-| `Land(Aircraft ctx)` | `ctx` – the aircraft | `void` | Handle landing request |
-| `HandleEmergency(Aircraft ctx)` | `ctx` – the aircraft | `void` | Handle emergency declaration |
-| `Abort(Aircraft ctx)` | `ctx` – the aircraft | `void` | Handle abort request |
-| `Update(Aircraft ctx, double deltaT)` | `ctx` – the aircraft; `deltaT` – seconds | `void` | Per-frame simulation logic for this state |
-| `OnEnter(Aircraft ctx)` | `ctx` – the aircraft | `void` | Called once when transitioning into this state |
-| `OnExit(Aircraft ctx)` | `ctx` – the aircraft | `void` | Called once when transitioning out of this state |
+| `Health` | — | `double` | 1.0 = intact, 0.0 = gone |
+| `FireState` | — | `FireState` | None / Burning / Spreading / Melting |
+| `StartFire()` | — | `void` | Sets `FireState = Burning`, starts decay timer |
+| `Update(double dt, DamageModel dm)` | dt + damage model | `void` | Advances fire spread, reduces health. At Health=0.5 → sets `dm.AsymmetricDragActive=true`. At Health=0 → sets `dm.IsGameOver=true` |
+| `ApplyDamage(double severity)` | 0.0–1.0 | `void` | Direct structural damage (e.g. explosion shockwave) |
+| `ExtinguishFire()` | — | `bool` | Attempts fire suppression. Returns false if Health < 0.4 |
+| `IsOnFire` | — | `bool` | `FireState != None` |
 
 ---
 
-### 4.2 State Classes
+### 4.6 `EngineSystem.cs`
+
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `Start()` | — | `bool` | Engine start attempt. Returns false if Health < 0.2 or no fuel |
+| `Stop()` | — | `void` | Cuts fuel, RPM decays to 0 |
+| `Restart()` | — | `bool` | In-flight restart. Returns false if Health < 0.2 or alt > 30000ft |
+| `StartFire()` | — | `void` | Sets engine on fire. Begins health decay + publishes `EngineFireEvent` |
+| `ExtinguishFire()` | — | `bool` | Fire suppression. Returns false if Health < 0.3 |
+| `Explode()` | — | `void` | Called when Health reaches 0 while on fire. Sets `IsExploded=true`, spikes GForce, damages wing |
+| `Update(double dt, FlightData data)` | dt + telemetry | `void` | Advances RPM, temp, fire if active |
+| `CalculateThrust(double throttle)` | 0.0–1.0 | `double` | Thrust in kN, scaled by Health |
+| `IsOverheating` | — | `bool` | `TempC > DangerTempC` |
+| `IsOnFire` | — | `bool` | Fire state flag |
+| `IsExploded` | — | `bool` | Post-explosion flag |
+| `ThrustKN` | — | `double` | Current thrust output |
+
+---
+
+### 4.7 `FuelSystem.cs`
+
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `Refuel(double kg)` | kg to add | `void` | Adds fuel, clamps to MaxFuelKg |
+| `Burn(double kgPerH, double dt)` | burn rate + time | `void` | Reduces FuelLevelKg. Publishes `FuelLowEvent` at 15%, `FuelCriticalEvent` at 5% |
+| `StartLeak(double rateKgPerH)` | leak rate | `void` | Activates leak |
+| `SealLeak()` | — | `bool` | Attempts seal. False if Health < 0.3 |
+| `EmergencyDump()` | — | `void` | Dumps fuel rapidly |
+| `CheckIgnitionRisk()` | — | `bool` | Returns true if leak + ignition conditions met (used by CascadeHandler) |
+| `LeakRate` | — | `double` | Current kg/h leak (0 if none) |
+| `IsLeaking` | — | `bool` | Active leak flag |
+
+---
+
+## 5. Module: Core/Sensors
+
+### 5.1 `ISensor.cs`
+
+| Method / Property | Parameters | Returns | Description |
+|---|---|---|---|
+| `SensorName` | — | `string` | e.g. "ALT-SNS", "ENG1-RPM" |
+| `State` | — | `SensorState` | OK / Noisy / Fault / Dead |
+| `Accuracy` | — | `double` | 1.0 = perfect, 0.0 = dead |
+| `Read(double realValue)` | true value | `double` | Returns (possibly wrong) reading |
+| `ApplyDamage(double severity)` | 0.0–1.0 | `void` | Reduces accuracy, may change state |
+| `AddNoise(double amount)` | noise factor | `void` | Temporarily adds noise (turbulence effect) |
+| `Kill()` | — | `void` | Sets State = Dead, returns -1 always |
+| `Repair()` | — | `void` | Resets to OK state |
+
+---
+
+### 5.2 `Sensor.cs` (base implementation)
+
+```csharp
+public class Sensor : ISensor
+{
+    private readonly Random _rng = new();
+    private double _noiseBoost = 0;       // temporary extra noise from turbulence
+
+    public string      SensorName { get; }
+    public SensorState State      { get; private set; } = SensorState.OK;
+    public double      Accuracy   { get; private set; } = 1.0;
+
+    public double Read(double realValue)
+    {
+        if (State == SensorState.Dead)   return -1;     // -1 = "---" on dashboard
+        if (State == SensorState.Fault)
+        {
+            // stuck at last value, or totally wrong reading
+            return _lastReading;
+        }
+        double totalNoise = (1.0 - Accuracy) + _noiseBoost;
+        double noise = (_rng.NextDouble() - 0.5) * 2 * totalNoise * realValue * 0.15;
+        _lastReading = realValue + noise;
+        return _lastReading;
+    }
+
+    public void ApplyDamage(double severity)
+    {
+        Accuracy = Math.Max(0, Accuracy - severity);
+        if (Accuracy < 0.3) State = SensorState.Fault;
+        if (Accuracy <= 0)  State = SensorState.Dead;
+    }
+
+    public void AddNoise(double amount)   => _noiseBoost = Math.Min(1.0, _noiseBoost + amount);
+    public void ClearNoise()              => _noiseBoost = 0;
+    public void Kill()                    { Accuracy = 0; State = SensorState.Dead; }
+    public void Repair()                  { Accuracy = 1.0; State = SensorState.OK; _noiseBoost = 0; }
+
+    private double _lastReading;
+}
+```
+
+---
+
+### 5.3 `SensorSystem.cs`
+
+Holds all sensor instances. The **view reads from sensors, not from FlightData directly.** This means the player sees potentially wrong values.
+
+| Property / Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `Altitude` | — | `Sensor` | Reads from `FlightData.Altitude` |
+| `Airspeed` | — | `Sensor` | Reads from `FlightData.Speed` |
+| `Engine1RPM` | — | `Sensor` | Reads from `FlightData.Engine1RPM` |
+| `Engine2RPM` | — | `Sensor` | Reads from `FlightData.Engine2RPM` |
+| `Engine1Temp` | — | `Sensor` | Reads from `FlightData.Engine1TempC` |
+| `Engine2Temp` | — | `Sensor` | Reads from `FlightData.Engine2TempC` |
+| `FuelLevel` | — | `Sensor` | Reads from `FlightData.FuelLevelKg` |
+| `HydraulicPressure` | — | `Sensor` | Reads from `HydraulicSystem.Pressure` |
+| `GetAllSensors()` | — | `IReadOnlyList<ISensor>` | All sensors for display |
+| `Update(double dt, FlightData data)` | dt + real data | `void` | Calls `Read()` on each, caches results |
+| `GetReading(string sensorName)` | name | `double` | Returns cached sensor reading (-1 if dead) |
+| `AddNoiseToAll(double amount)` | noise factor | `void` | Used by turbulence cascade |
+| `DamageRandomSensor()` | — | `ISensor` | Picks a random sensor, applies damage 0.5–0.8 |
+| `GetFaultySensors()` | — | `IReadOnlyList<ISensor>` | Sensors in Fault or Dead state |
+
+---
+
+### 5.4 Sensor state display (for SensorsPanelWidget)
+
+| State | Display color | Reading shown |
+|---|---|---|
+| OK | Green | Normal value |
+| Noisy | Yellow | Value with visible jitter |
+| Fault | Red | "FAULT" label + last stuck value |
+| Dead | Dark Red | "---" |
+
+---
+
+## 6. Module: Core/States – Pattern: State
+
+State pattern: `Aircraft` holds one `IAircraftState`. All behavior delegates to it. No `if/switch` in `Aircraft`. Each state decides valid transitions.
+
+### 6.1 `IAircraftState.cs`
+
+| Method / Property | Parameters | Returns | Description |
+|---|---|---|---|
+| `StateName` | — | `string` | Display name |
+| `StateDescription` | — | `string` | One-line description |
+| `StateColor` | — | `ConsoleColor` | Dashboard header color |
+| `AllowedActions` | — | `IReadOnlyList<string>` | Available actions for menu |
+| `TakeOff(Aircraft ctx)` | aircraft | `void` | Handle takeoff request |
+| `Cruise(Aircraft ctx)` | aircraft | `void` | Handle cruise request |
+| `Descend(Aircraft ctx)` | aircraft | `void` | Handle descent request |
+| `Land(Aircraft ctx)` | aircraft | `void` | Handle landing request |
+| `HandleEmergency(Aircraft ctx)` | aircraft | `void` | Handle emergency |
+| `Abort(Aircraft ctx)` | aircraft | `void` | Handle abort |
+| `Update(Aircraft ctx, double deltaT)` | aircraft + dt | `void` | Per-frame simulation |
+| `OnEnter(Aircraft ctx)` | aircraft | `void` | Called once on entry |
+| `OnExit(Aircraft ctx)` | aircraft | `void` | Called once on exit |
+
+---
+
+### 6.2 State Classes
 
 #### `GroundState.cs`
 
-Aircraft is parked or on the ground with engines stopped or at idle.
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Sets speed=0, verticalSpeed=0, retracts gear flag |
-| `TakeOff(ctx)` | Checks: fuel > 10%, all systems OK. If pass → `ctx.TransitionTo(new TakeOffState())`. If fail → publishes `AlertEvent("NOT READY FOR TAKEOFF")` |
-| `Cruise(ctx)` | Publishes alert: "Cannot cruise on the ground" |
-| `Descend(ctx)` | Publishes alert: "Already on the ground" |
-| `Land(ctx)` | Publishes alert: "Already on the ground" |
-| `HandleEmergency(ctx)` | Publishes alert: "Ground emergency – call fire services" |
-| `Abort(ctx)` | No-op |
-| `Update(ctx, deltaT)` | Simulates engine warm-up, fuel level if refueling, boarding countdown |
+| `OnEnter(ctx)` | Speed=0, VerticalSpeed=0, gear down, engines idle |
+| `TakeOff(ctx)` | Check: fuel>10%, Engine1.Health>0.3, Engine2.Health>0.3. Pass → `TransitionTo(TaxiState)`. Fail → alert |
+| `Cruise(ctx)` | Alert: "Cannot cruise on ground" |
+| `Land(ctx)` | Alert: "Already on ground" |
+| `HandleEmergency(ctx)` | Alert: "Ground emergency" |
+| `Update(ctx, dt)` | Simulate engine warm-up, fuel if refueling |
 
-**Private fields:**
-- `bool IsEngineRunning`
-- `int GateNumber`
-- `double RefuelRate` (kg/s)
+Private fields: `bool IsEngineRunning`, `int GateNumber`, `double RefuelRate`
 
 ---
 
 #### `TaxiState.cs`
 
-Aircraft moves along the taxiway to the runway.
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Sets speed=15kts, engages tiller steering |
-| `TakeOff(ctx)` | If at correct runway position → `TransitionTo(new TakeOffState())` |
-| `Abort(ctx)` | Returns to nearest gate → `TransitionTo(new GroundState())` |
-| `Update(ctx, deltaT)` | Advances taxi position, checks runway hold-short lines |
+| `OnEnter(ctx)` | Speed=15kts |
+| `TakeOff(ctx)` | At runway position → `TransitionTo(TakeOffState)` |
+| `Abort(ctx)` | Return to gate → `TransitionTo(GroundState)` |
+| `Update(ctx, dt)` | Advance taxi position on map |
 
 ---
 
 #### `TakeOffState.cs`
 
-Acceleration on runway, rotation, and initial climb to 1,500 ft AGL.
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Sets throttle=1.0, arms spoilers, arms auto-rotate at VR |
-| `Update(ctx, deltaT)` | Increases `Speed` based on thrust vs drag; at VR → sets `PitchAngleDeg=+7.5`; at V2 → starts climbing; at 1500ft → `TransitionTo(new ClimbState())` |
-| `Abort(ctx)` | If speed < V1 → rejected takeoff: cut throttle, apply max brakes, `TransitionTo(new GroundState())` |
-| `HandleEmergency(ctx)` | If speed > V1 → continue and `TransitionTo(new EmergencyState())`. If speed < V1 → `Abort()` |
-| `Cruise(ctx)` | Alert: "Cannot cruise during takeoff" |
+| `OnEnter(ctx)` | Throttle=1.0, arm auto-rotate at VR |
+| `Update(ctx, dt)` | Increase Speed from thrust; at VR → Pitch +7.5°; at V2 → climb; at 1500ft → `TransitionTo(ClimbState)` |
+| `Abort(ctx)` | If Speed < V1 → cut throttle, brake, `TransitionTo(GroundState)` |
+| `HandleEmergency(ctx)` | If Speed > V1 → continue to `EmergencyState`. If < V1 → `Abort()` |
 
-**Private fields:**
-- `double V1Speed`, `double VRSpeed`, `double V2Speed`
-- `bool HasRotated`
-- `double RotationAngle`
+Private fields: `double V1Speed`, `double VRSpeed`, `bool HasRotated`
 
 ---
 
 #### `ClimbState.cs`
 
-Steady climb to cruise altitude (e.g. FL350 = 35,000 ft).
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Sets target altitude from config, retracts gear and flaps |
-| `Update(ctx, deltaT)` | Increases altitude at `ClimbRate` ft/min; adjusts speed; when target altitude reached → auto-calls `Cruise(ctx)` |
-| `Cruise(ctx)` | `TransitionTo(new CruiseState())` |
-| `HandleEmergency(ctx)` | `TransitionTo(new EmergencyState())` |
-| `Abort(ctx)` | Immediate descent → `TransitionTo(new DescentState())` |
+| `OnEnter(ctx)` | Retract gear + flaps, set target altitude from config |
+| `Update(ctx, dt)` | Increase altitude at ClimbRate; when target reached → `TransitionTo(CruiseState)` |
+| `Cruise(ctx)` | `TransitionTo(CruiseState)` |
+| `HandleEmergency(ctx)` | `TransitionTo(EmergencyState)` |
 
-**Private fields:**
-- `double TargetAltitude`
-- `double ClimbRate` (ft/min, varies with altitude)
-- `ClimbPhase Phase` (Gear Up / Flaps Retract / Climb Power / Level Off)
+Private fields: `double TargetAltitude`, `double ClimbRate`
 
 ---
 
 #### `CruiseState.cs`
 
-Main flight phase. Autopilot active. Anomalies can spawn here.
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Engages autopilot ALT_HOLD + HDG, sets cruise throttle |
-| `Update(ctx, deltaT)` | Simulates fuel burn, wind effects, waypoint tracking; if `FuelPercent < 5%` → `HandleEmergency()` |
-| `Descend(ctx)` | `TransitionTo(new DescentState())` |
-| `HandleEmergency(ctx)` | `TransitionTo(new EmergencyState())` |
-| `TakeOff(ctx)` | Alert: "Already airborne" |
-| `Land(ctx)` | Alert: "Must descend first" |
+| `OnEnter(ctx)` | Engage autopilot ALT_HOLD + HDG |
+| `Update(ctx, dt)` | Burn fuel, wind drift, apply asymmetric drag if `DamageModel.AsymmetricDragActive`. Check fuel < 5% → `HandleEmergency()` |
+| `Descend(ctx)` | `TransitionTo(DescentState)` |
+| `HandleEmergency(ctx)` | `TransitionTo(EmergencyState)` |
 
 ---
 
 #### `DescentState.cs`
 
-Descent from cruise altitude toward approach altitude (~3,000 ft).
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Sets throttle=0.3, begins extending flaps incrementally |
-| `Update(ctx, deltaT)` | Reduces altitude at `DescentRate` ft/min; reduces speed; at 3000ft and speed < 180kts → auto-calls `Land(ctx)` |
-| `Land(ctx)` | `TransitionTo(new LandingState())` |
-| `HandleEmergency(ctx)` | `TransitionTo(new EmergencyState())` |
-| `Abort(ctx)` | Go-around: increase throttle, `TransitionTo(new ClimbState())` |
-
-**Private fields:**
-- `double DescentRate` (ft/min)
-- `int FlapsPosition` (0–5)
-- `DescentPhase Phase` (Cruise Descent / Approach / Final)
+| `OnEnter(ctx)` | Throttle=0.3, extend flaps incrementally |
+| `Update(ctx, dt)` | Reduce altitude and speed; at 3000ft and speed<180kts → `Land(ctx)` |
+| `Land(ctx)` | `TransitionTo(LandingState)` |
+| `Abort(ctx)` | Go-around → `TransitionTo(ClimbState)` |
 
 ---
 
 #### `LandingState.cs`
 
-Final approach ILS tracking, flare, touchdown, rollout.
-
 | Method | Behavior |
 |---|---|
 | `OnEnter(ctx)` | Full flaps, gear down, ILS intercept |
-| `Update(ctx, deltaT)` | Tracks ILS glideslope (3°); applies crosswind correction; at 50ft → flare (pitch up +2°); touchdown: records speed, applies brakes, decelerates to 0 → `TransitionTo(new GroundState())` |
-| `Abort(ctx)` | Go-around: full throttle, gear up, `TransitionTo(new ClimbState())` |
-| `HandleEmergency(ctx)` | Continues landing attempt but transitions to `EmergencyState` for logging |
+| `Update(ctx, dt)` | ILS glideslope tracking; crosswind correction; flare at 50ft; touchdown → `TransitionTo(GroundState)`. If `AsymmetricDragActive` → harder correction needed, drifts on approach |
+| `Abort(ctx)` | Go-around: full thrust, gear up, `TransitionTo(ClimbState)` |
 
-**Private fields:**
-- `double ILSDeviation` (dots, -2.5 to +2.5)
-- `double GlideslopeAngle`
-- `double TouchdownSpeed`
-- `LandingPhase Phase` (Approach / Flare / Rollout)
-- `bool IsGearDown`
+Private fields: `double ILSDeviation`, `double TouchdownSpeed`, `LandingPhase Phase`
 
 ---
 
 #### `HoldingState.cs`
 
-Aircraft circles in a holding pattern waiting for clearance.
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Records holding fix position, sets bank angle 25° for turns |
-| `Update(ctx, deltaT)` | Flies racetrack pattern (1-min legs, standard turns); counts fuel, increments `LoopCount` |
-| `Land(ctx)` | `TransitionTo(new DescentState())` (given landing clearance) |
-| `HandleEmergency(ctx)` | If fuel critical → immediate `TransitionTo(new DescentState())` |
-
-**Private fields:**
-- `double HoldFixLat`, `double HoldFixLon`
-- `double HoldInboundCourse`
-- `int LoopCount`
-- `HoldingLeg CurrentLeg` (Inbound / Turn1 / Outbound / Turn2)
+| `OnEnter(ctx)` | Record hold fix, bank angle 25° |
+| `Update(ctx, dt)` | Racetrack pattern; burn fuel; count loops |
+| `Land(ctx)` | `TransitionTo(DescentState)` |
+| `HandleEmergency(ctx)` | Fuel critical → immediate `TransitionTo(DescentState)` |
 
 ---
 
 #### `EmergencyState.cs`
 
-Activated from any state. Identifies failure type and manages emergency response.
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Publishes `MAYDAYEvent`, logs emergency declaration, sets emergency frequency |
-| `Update(ctx, deltaT)` | Degrades affected systems further; tracks time to nearest airport; if severity escalates → `TransitionTo(new CriticalState())` |
-| `Land(ctx)` | Forced immediate approach → `TransitionTo(new LandingState())` |
-| `HandleEmergency(ctx)` | Escalate → `TransitionTo(new CriticalState())` |
-| `Abort(ctx)` | No-op (cannot abort an emergency) |
+| `OnEnter(ctx)` | Publish `MaydayEvent`, log MAYDAY |
+| `Update(ctx, dt)` | Track most critical active anomaly; escalate if severity increases → `TransitionTo(CriticalState)` |
+| `Land(ctx)` | Immediate approach → `TransitionTo(LandingState)` |
+| `HandleEmergency(ctx)` | Escalate → `TransitionTo(CriticalState)` |
 
-**Private fields:**
-- `EmergencyType Type` (EngineFailure, Fire, Decompression, etc.)
-- `double Severity` (0.0–1.0)
-- `double TimeToNearestAirportMin`
-- `bool MaydayDeclared`
+Private fields: `double Severity`, `bool MaydayDeclared`
 
 ---
 
 #### `CriticalState.cs`
 
-Aircraft is in unrecoverable or near-unrecoverable failure. Player has limited control.
-
 | Method | Behavior |
 |---|---|
-| `OnEnter(ctx)` | Disables autopilot, removes most actions from `AllowedActions`, rapid system degradation begins |
-| `Update(ctx, deltaT)` | Each tick reduces control authority; tracks altitude; if altitude < 0 → crash (game over); if somehow landed → `TransitionTo(new GroundState())` with crash-landing report |
-| `Land(ctx)` | Last-ditch crash landing attempt |
+| `OnEnter(ctx)` | Disable autopilot, clear most allowed actions, max damage decay begins |
+| `Update(ctx, dt)` | Check `DamageModel.CheckGameOver()` each tick. If true → trigger black box GAME OVER sequence. Otherwise limited control |
+| `Land(ctx)` | Last-ditch crash landing |
 
 ---
 
-## 5. Module: Core/Strategies – Pattern: Strategy
+## 7. Module: Core/Strategies – Pattern: Strategy
 
----
-
-### 5.1 `IAnomaly.cs`
-
-Interface for all in-flight anomalies (the Strategy family for failures).
+### 7.1 `IAnomaly.cs`
 
 | Method / Property | Parameters | Returns | Description |
 |---|---|---|---|
-| `AnomalyName` (property) | — | `string` | Display name ("ENGINE FAILURE") |
-| `Description` (property) | — | `string` | Short description for pilot |
-| `Level` (property) | — | `Severity` | Low / Medium / High / Critical |
-| `Probability` (property) | — | `double` | Chance per second of triggering (0.0–1.0) |
-| `IsActive` (property) | — | `bool` | Whether this anomaly is currently active |
-| `CanBeResolved` (property) | — | `bool` | Whether pilot action can fix it |
-| `Trigger(Aircraft ctx, FlightData data)` | `ctx` – aircraft; `data` – current telemetry | `void` | Activates the anomaly, applies immediate effect |
-| `Update(Aircraft ctx, FlightData data)` | same | `void` | Called each tick while anomaly is active |
-| `Resolve(Aircraft ctx)` | `ctx` – aircraft | `bool` | Pilot attempts fix. Returns `true` if successful |
-| `GetWarningMessage()` | — | `string` | Short warning for alerts bar |
-| `GetPilotAction()` | — | `string` | Instruction text ("Press [R] to restart engine") |
+| `AnomalyName` | — | `string` | Display name |
+| `Description` | — | `string` | Short description |
+| `Level` | — | `Severity` | Low / Medium / High / Critical |
+| `Probability` | — | `double` | Chance per second of triggering |
+| `IsActive` | — | `bool` | Currently active flag |
+| `CanBeResolved` | — | `bool` | Whether player can fix it |
+| `Trigger(Aircraft ctx, FlightData data)` | aircraft + telemetry | `void` | Activate anomaly, immediate effect |
+| `Update(Aircraft ctx, FlightData data)` | aircraft + telemetry | `void` | Per-tick while active |
+| `Resolve(Aircraft ctx)` | aircraft | `bool` | Player attempts fix. True = success |
+| `GetWarningMessage()` | — | `string` | Alert bar text |
+| `GetPilotAction()` | — | `string` | Instruction for player |
 
 ---
 
-### 5.2 `AbstractAnomaly.cs`
-
-Abstract base implementing common logic (timer, active flag, event publishing).
+### 7.2 `AbstractAnomaly.cs`
 
 ```csharp
 public abstract class AbstractAnomaly : IAnomaly
 {
     protected bool   _isActive;
-    protected double _activeDuration;   // seconds since triggered
-    protected Random _rng;
+    protected double _activeDuration;
+    protected Random _rng = new();
 
-    // Shared helpers
-    protected void PublishAlert(Aircraft ctx, string message, Severity level);
-    protected bool CheckProbability(double deltaT);   // true if should trigger this tick
+    protected void PublishAlert(Aircraft ctx, string msg, Severity level);
+    protected bool CheckProbability(double deltaT);
+    protected void TriggerCascade(Aircraft ctx, IAnomaly cascade);  // chains next anomaly
 }
 ```
 
 ---
 
-### 5.3 Anomaly Implementations
+### 7.3 Anomaly Implementations
+
+#### `BirdStrikeAnomaly.cs` (UPDATED with cascade)
+
+| Method | Parameters | Returns | Behavior |
+|---|---|---|---|
+| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Picks random engine. `ApplyDamage(SystemType.Engine, 0.3)`. GForce spike +0.5g. Publishes `SystemFailureEvent`. **Cascade roll: 40% → calls `TriggerCascade(ctx, new EngineFireAnomaly())`** |
+| `Update(ctx, data)` | aircraft, telemetry | `void` | GForce oscillates ±0.15g while active (vibration). Checks if engine RPM sensor should be damaged: if engine health < 0.5 → `ctx.Sensors.Engine1RPM.ApplyDamage(0.4)` |
+| `Resolve(ctx)` | aircraft | `bool` | `CanBeResolved = false`. Bird strike is a one-time event. Sets `IsActive = false` automatically after 10 seconds |
+
+**Spawn condition:** Only at altitude < 10,000ft
+
+---
+
+#### `EngineFireAnomaly.cs` (NEW)
+
+| Method | Parameters | Returns | Behavior |
+|---|---|---|---|
+| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Calls `EngineSystem.StartFire()`. Publishes `EngineFireEvent`. Sets fire decay: engine health -3%/sec |
+| `Update(ctx, data)` | aircraft, telemetry | `void` | Every 10 seconds: roll 30% chance → `TriggerCascade(ctx, new WingFireAnomaly())`. Engine health decays. If engine health reaches 0 → calls `EngineSystem.Explode()` which damages wing. Temperature sensor becomes noisy |
+| `Resolve(ctx)` | aircraft | `bool` | Calls `EngineSystem.ExtinguishFire()`. Returns result. On success: `IsActive = false`, fire damage stops (but engine health stays where it is) |
+
+**Properties:** `Level = Critical`, `CanBeResolved = true`, `GetPilotAction() = "Press [R] to activate fire suppression"`
+
+---
+
+#### `WingFireAnomaly.cs` (NEW)
+
+| Method | Parameters | Returns | Behavior |
+|---|---|---|---|
+| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Calls `WingSystem.StartFire()`. Publishes `WingFireEvent`. Begins wing health decay -1%/sec base rate |
+| `Update(ctx, data)` | aircraft, telemetry | `void` | Wing health decays. At 50% health → `DamageModel.AsymmetricDragActive = true`, aircraft starts drifting. At 20% health → `ElectricalSystem.ApplyDamage(0.6)` (wiring burns). At 0% health → `DamageModel.IsGameOver = true`, `DamageModel.GameOverReason = "Wing structural failure"` |
+| `Resolve(ctx)` | aircraft | `bool` | Calls `WingSystem.ExtinguishFire()`. Returns false if wing health < 40%. Player must act fast |
+
+**Properties:** `Level = Critical`, `CanBeResolved = true (barely)`, `GetPilotAction() = "Press [R] for wing fire suppression -- ACT FAST"`
+
+---
 
 #### `EngineFailureAnomaly.cs`
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Sets `EngineSystem.Health = 0`, calls `Stop()`. RPM decays to 0. Publishes `SystemFailureEvent`. Sets aircraft into mild descent |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Monitors altitude loss, increases other engine temperature, checks if pilot is attempting restart |
-| `Resolve(ctx)` | aircraft | `bool` | Calls `EngineSystem.Restart()`. Returns `false` if health < 0.2 or altitude < 5000ft |
-
-**Properties:** `Level = High`, `CanBeResolved = true`, `Probability = 0.0002` per second
+| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Engine health → 0, calls `Stop()`. RPM decays to 0. Publishes `SystemFailureEvent`. Engine RPM sensor → `Fault` (reads 0 even if restarted until sensor repaired) |
+| `Update(ctx, data)` | aircraft, telemetry | `void` | Checks if restart attempted. If only one engine left: aircraft slowly loses speed |
+| `Resolve(ctx)` | aircraft | `bool` | Calls `EngineSystem.Restart()`. False if health < 0.2 or alt < 5000ft |
 
 ---
 
-#### `BirdStrikeAnomaly.cs`
+#### `TurbulenceAnomaly.cs` (UPDATED with sensor cascade)
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Applies `ApplyDamage(SystemType.Engine, 0.3)`. Publishes vibration effect (GForce spike +0.5g). Drops engine health by 30% |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Adds engine vibration to telemetry display (GForce oscillates ±0.15g) |
-| `Resolve(ctx)` | aircraft | `bool` | `CanBeResolved = false` – requires maintenance |
+| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Sets turbulence level random Low–High. **If Medium or higher → `ctx.Sensors.AddNoiseToAll(0.15)`**. If Critical → `ctx.Sensors.DamageRandomSensor()` |
+| `Update(ctx, data)` | aircraft, telemetry | `void` | Each tick: altitude ±200ft random, speed ±15kts, GForce oscillates. Sensor noise persists while active |
+| `Resolve(ctx)` | aircraft | `bool` | Change altitude ±2000ft. Auto-resolves after 3–8 min. On resolve: `ctx.Sensors.ClearNoise()` (noise goes back to just accuracy-based) |
 
-**Properties:** `Level = Medium`, only triggers at `Altitude < 10000ft`
+---
+
+#### `SensorFailureAnomaly.cs` (NEW)
+
+| Method | Parameters | Returns | Behavior |
+|---|---|---|---|
+| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Picks a random critical sensor (altitude or airspeed preferred). Calls `sensor.ApplyDamage(0.7)`. If altitude sensor faulted → autopilot gets wrong target → may climb or descend incorrectly |
+| `Update(ctx, data)` | aircraft, telemetry | `void` | If altitude sensor is Fault and autopilot is on: autopilot drifts the real altitude by ±50ft/sec (it thinks it's somewhere else). Player must disengage autopilot |
+| `Resolve(ctx)` | aircraft | `bool` | Player presses [R]. Calls `sensor.Repair()`. Autopilot re-syncs to true altitude |
 
 ---
 
@@ -701,9 +836,9 @@ public abstract class AbstractAnomaly : IAnomaly
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Sets hydraulic pressure to 0. `HydraulicSystem.ApplyDamage(1.0)`. Flaps and gear now blocked |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | If gear needed (landing) → warns pilot to use emergency extension |
-| `Resolve(ctx)` | aircraft | `bool` | Only partially: calls `HydraulicSystem.EmergencyGearExtension()`. Flaps remain stuck |
+| `Trigger(ctx, data)` | — | `void` | `HydraulicSystem.Pressure = 0`. Gear jams if mid-transit. Flaps stuck. Hydraulic sensor → Fault |
+| `Update(ctx, data)` | — | `void` | If in landing and gear still up → escalate warning |
+| `Resolve(ctx)` | — | `bool` | `HydraulicSystem.EmergencyGearExtension()`. Flaps remain stuck |
 
 ---
 
@@ -711,9 +846,9 @@ public abstract class AbstractAnomaly : IAnomaly
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Calls `FuelSystem.StartLeak(leakRate)` where `leakRate` = 80–250 kg/h random |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Monitors fuel level; if < 5% → publishes `FuelCriticalEvent`; updates leak display in fuel gauge |
-| `Resolve(ctx)` | aircraft | `bool` | Calls `FuelSystem.SealLeak()`. Returns result |
+| `Trigger(ctx, data)` | — | `void` | `FuelSystem.StartLeak(80–250 kg/h random)`. Fuel sensor becomes noisy (reads slightly higher than real) |
+| `Update(ctx, data)` | — | `void` | Monitor fuel. At <5% → `FuelCriticalEvent`. **Every 60s unresolved: `FuelSystem.CheckIgnitionRisk()` → 20% chance → `TriggerCascade(EngineFireAnomaly)`** |
+| `Resolve(ctx)` | — | `bool` | `FuelSystem.SealLeak()`. Fuel sensor noise cleared on success |
 
 ---
 
@@ -721,9 +856,9 @@ public abstract class AbstractAnomaly : IAnomaly
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Drops main bus voltage to 0. Navigation and autopilot go offline |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Increments degradation of systems that lack power; after 30s → secondary bus fails too |
-| `Resolve(ctx)` | aircraft | `bool` | Calls `ElectricalSystem.SwitchToBackupBattery()`. Returns `true` |
+| `Trigger(ctx, data)` | — | `void` | Main bus voltage = 0. Autopilot goes offline. All sensors lose -40% accuracy |
+| `Update(ctx, data)` | — | `void` | After 30s → secondary bus fails → nav offline. Systems without power decay slowly |
+| `Resolve(ctx)` | — | `bool` | `ElectricalSystem.SwitchToBackupBattery()`. Sensors recover -20% noise (battery is weaker) |
 
 ---
 
@@ -731,19 +866,9 @@ public abstract class AbstractAnomaly : IAnomaly
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Only valid if `data.Altitude > 25000`. Publishes MAYDAY. Sets target altitude to 10,000ft immediately |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Forces rapid descent; if pilot doesn't descend within 60s → pilot incapacitation (game over) |
-| `Resolve(ctx)` | aircraft | `bool` | `CanBeResolved = false` – must descend below 10,000ft (automatic on resolve) |
-
----
-
-#### `TurbulenceAnomaly.cs`
-
-| Method | Parameters | Returns | Behavior |
-|---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Sets turbulence active flag; `Level` randomly chosen Low–High |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Each tick: `Altitude += Random(-200, 200)` ft, `Speed += Random(-15, 15)` kts, `GForce = 1.0 + Random(-0.8, 0.8)` |
-| `Resolve(ctx)` | aircraft | `bool` | `CanBeResolved = true` – pilot changes altitude ±2000ft. Auto-resolves after 3–8 minutes |
+| `Trigger(ctx, data)` | — | `void` | Only valid if Altitude > 25,000ft. MAYDAY. Target altitude forced to 10,000ft. Altitude sensor and speed sensor both get `AddNoise(0.3)` |
+| `Update(ctx, data)` | — | `void` | If not descending within 60s → game over (pilot incapacitation) |
+| `Resolve(ctx)` | — | `bool` | `CanBeResolved = false`. Must descend below 10,000ft |
 
 ---
 
@@ -751,19 +876,9 @@ public abstract class AbstractAnomaly : IAnomaly
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Only if `TempC < 0` and humidity > 80%. Increases effective aircraft weight, changes stall speed |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Gradually increases ice accretion; stall speed rises by 1 kt/min; if >15 kts above normal stall → Level escalates |
-| `Resolve(ctx)` | aircraft | `bool` | Calls `ElectricalSystem.ActivateDeIcing()`. Returns `true` if electrical health > 0.4 |
-
----
-
-#### `RunwayIncursionAnomaly.cs`
-
-| Method | Parameters | Returns | Behavior |
-|---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Only in `LandingState` when altitude < 500ft. Vehicle on runway. ATC warning |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Counts down to collision; if no go-around within 15s → forced collision |
-| `Resolve(ctx)` | aircraft | `bool` | Player must press go-around key → calls `LandingState.Abort()` |
+| `Trigger(ctx, data)` | — | `void` | Only if TempC < 0 and humidity high. Stall speed rises +1kt/min. Airspeed sensor gets noise (ice on pitot tube) |
+| `Update(ctx, data)` | — | `void` | Stall speed rises. If >15kts above normal → Level escalates. Airspeed sensor noise increases over time |
+| `Resolve(ctx)` | — | `bool` | `ElectricalSystem.ActivateDeIcing()`. Clears airspeed sensor noise on success |
 
 ---
 
@@ -771,49 +886,51 @@ public abstract class AbstractAnomaly : IAnomaly
 
 | Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `Trigger(ctx, data)` | aircraft, telemetry | `void` | Only during approach/landing. Sudden headwind of +40kts followed by tailwind -40kts within 10 seconds |
-| `Update(ctx, data)` | aircraft, telemetry | `void` | Applies wind shear vector; causes rapid altitude loss (−1000 ft/min extra); if pilot doesn't apply full thrust within 5s → crash |
-| `Resolve(ctx)` | aircraft | `bool` | Full throttle + pitch up → survives. Pilot must act within window |
+| `Trigger(ctx, data)` | — | `void` | During approach only. Sudden +40kt headwind then -40kt tailwind within 10 seconds |
+| `Update(ctx, data)` | — | `void` | Rapid altitude loss -1000ft/min extra. If no full thrust within 5s → game over |
+| `Resolve(ctx)` | — | `bool` | Full throttle + pitch up within time window |
 
 ---
 
-### 5.4 `IWeatherStrategy.cs`
+#### `RunwayIncursionAnomaly.cs`
 
-| Method / Property | Parameters | Returns | Description |
+| Method | Parameters | Returns | Behavior |
 |---|---|---|---|
-| `WeatherName` (property) | — | `string` | Display name |
-| `Description` (property) | — | `string` | Short description |
-| `IsHazardous` (property) | — | `bool` | Whether it can trigger anomalies |
-| `Apply(FlightData data, double deltaT)` | current telemetry, elapsed seconds | `void` | Modifies wind, temperature, pressure in `FlightData` |
-| `GetTurbulenceLevel()` | — | `double` | 0.0 (calm) to 1.0 (extreme) |
-| `GetVisibilityMeters()` | — | `double` | Horizontal visibility in meters |
-| `GetWindData()` | — | `WindData` | Returns `(double SpeedKts, double DirectionDeg, double GustKts)` |
-| `GetCompatibleAnomalies()` | — | `IReadOnlyList<AnomalyType>` | Anomalies this weather can spawn |
-
-#### Weather Strategy Classes
-
-| Class | `WeatherName` | Key behavior in `Apply()` |
-|---|---|---|
-| `ClearSkiesStrategy` | "CLEAR" | Wind < 10kts, visibility > 10km, temp standard ISA |
-| `ThunderstormStrategy` | "THUNDERSTORM" | Wind 30–60kts gusting, turbulence 0.8–1.0, visibility 200–500m, spawns TurbulenceAnomaly |
-| `FogStrategy` | "FOG" | Visibility < 200m, no wind, forces ILS Cat III approach |
-| `CrosswindStrategy` | "CROSSWIND" | Wind 90° offset from runway, 20–40kts, causes drift on approach |
-| `IcingConditionsStrategy` | "ICING" | Temp < -5°C, spawns IcingAnomaly above FL180 |
-| `WindShearStrategy` | "WIND SHEAR" | Rapid wind direction/speed change on approach, spawns MicroburstAnomaly |
+| `Trigger(ctx, data)` | — | `void` | LandingState only, alt < 500ft. ATC warning |
+| `Update(ctx, data)` | — | `void` | Countdown. No go-around in 15s → forced collision → game over |
+| `Resolve(ctx)` | — | `bool` | Player presses go-around key |
 
 ---
 
-## 6. Module: Core/Events – Pattern: Observer
+### 7.4 Weather Strategies
+
+`IWeatherStrategy` — same interface as before, with one addition:
+
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| (all previous methods) | — | — | unchanged |
+| `ApplySensorEffects(SensorSystem sensors)` | sensor system | `void` | NEW: weather-specific sensor interference |
+
+| Class | Sensor effect |
+|---|---|
+| `ClearSkiesStrategy` | No sensor effects |
+| `ThunderstormStrategy` | All sensors +0.1 noise. Lightning strike: 5% chance/min → random sensor `ApplyDamage(0.5)` |
+| `FogStrategy` | No sensor effects (ground-level fog) |
+| `CrosswindStrategy` | No sensor effects |
+| `IcingConditionsStrategy` | Airspeed sensor +0.2 noise (ice on pitot tube) |
+| `WindShearStrategy` | Altitude and airspeed sensors +0.15 noise during shear event |
 
 ---
 
-### 6.1 `FlightEvent.cs` (abstract base)
+## 8. Module: Core/Events – Pattern: Observer
+
+### 8.1 `FlightEvent.cs` (abstract base)
 
 ```csharp
 public abstract class FlightEvent
 {
     public DateTime Timestamp { get; init; } = DateTime.Now;
-    public string   Source    { get; init; }    // e.g. "EngineSystem", "CruiseState"
+    public string   Source    { get; init; }
     public Severity Level     { get; init; }
     public string   Message   { get; init; }
 }
@@ -823,629 +940,725 @@ public abstract class FlightEvent
 
 | Class | Extra Fields | Triggered When |
 |---|---|---|
-| `AltitudeChangedEvent` | `double NewAltitude, double OldAltitude` | Altitude changes by > 100ft |
-| `StateChangedEvent` | `string OldState, string NewState` | `Aircraft.TransitionTo()` called |
+| `AltitudeChangedEvent` | `double NewAltitude, OldAltitude` | Altitude changes > 100ft |
+| `StateChangedEvent` | `string OldState, NewState` | `Aircraft.TransitionTo()` called |
 | `AnomalyTriggeredEvent` | `IAnomaly Anomaly` | `IAnomaly.Trigger()` called |
 | `AnomalyResolvedEvent` | `IAnomaly Anomaly, bool Success` | `IAnomaly.Resolve()` called |
-| `SystemFailureEvent` | `SystemType System, double Health` | System health drops below 0.3 |
-| `FuelLowEvent` | `double RemainingPercent` | Fuel drops below 15% |
-| `FuelCriticalEvent` | `double RemainingPercent` | Fuel drops below 5% |
-| `WeatherChangedEvent` | `IWeatherStrategy NewWeather` | Weather strategy changes |
+| `CascadeTriggeredEvent` | `string Source, string Target` | NEW: cascade chain link activated |
+| `EngineFireEvent` | `int EngineNumber` | NEW: engine catches fire |
+| `WingFireEvent` | `string Side` | NEW: wing catches fire |
+| `EngineExplosionEvent` | `int EngineNumber` | NEW: engine explodes |
+| `AsymmetricDragEvent` | `string DamagedSide, double DriftRate` | NEW: wing melted enough to drift |
+| `GameOverEvent` | `string Reason` | NEW: fatal condition reached |
+| `SystemFailureEvent` | `SystemType System, double Health` | System health < 0.3 |
+| `SensorFaultEvent` | `string SensorName, SensorState State` | NEW: sensor changes state |
+| `FuelLowEvent` | `double RemainingPercent` | Fuel < 15% |
+| `FuelCriticalEvent` | `double RemainingPercent` | Fuel < 5% |
+| `WeatherChangedEvent` | `IWeatherStrategy NewWeather` | Weather changes |
 | `LandingCompletedEvent` | `double TouchdownSpeedKts, bool Successful` | Wheels touch runway |
 | `MaydayEvent` | `string Reason, EmergencyType Type` | Emergency declared |
-| `CommandExecutedEvent` | `string CommandName, string Details` | Any `IFlightCommand.Execute()` |
-| `PlayerInputEvent` | `PlayerAction Action, ConsoleKey Key` | Player presses a key |
-| `TelemetryTickEvent` | `FlightDataSnapshot Snapshot` | Every 1 second of sim time |
+| `CommandExecutedEvent` | `string CommandName, string Details` | Any command executed |
+| `PlayerInputEvent` | `PlayerAction Action, ConsoleKey Key` | Player key press |
+| `TelemetryTickEvent` | `FlightDataSnapshot Snapshot` | Every 1 second |
 
 ---
 
-### 6.2 `EventBus.cs` (Singleton)
+### 8.2 `EventBus.cs` (Singleton)
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Instance` (static property) | — | `EventBus` | Lazy singleton accessor |
-| `Subscribe<T>(IFlightEventHandler handler)` | `T` – event type; `handler` – listener | `void` | Registers handler for event type `T` |
-| `Unsubscribe<T>(IFlightEventHandler handler)` | same | `void` | Removes handler for event type `T` |
-| `Publish<T>(T evt)` | `evt` – event instance | `void` | Dispatches event to all registered handlers for type `T` |
-| `History` (property) | — | `IReadOnlyList<FlightEvent>` | Full ordered log of all published events |
-| `ClearHistory()` | — | `void` | Clears the event history (called on new flight) |
+| `Instance` (static) | — | `EventBus` | Lazy singleton |
+| `Subscribe<T>(IFlightEventHandler h)` | handler | `void` | Register for event type T |
+| `Unsubscribe<T>(IFlightEventHandler h)` | handler | `void` | Unregister |
+| `Publish<T>(T evt)` | event | `void` | Dispatch to all handlers |
+| `History` | — | `IReadOnlyList<FlightEvent>` | Full event log |
+| `ClearHistory()` | — | `void` | Reset log (new flight) |
 
 ---
 
-### 6.3 `IFlightEventHandler.cs`
+### 8.3 Handler Classes
 
-| Method / Property | Parameters | Returns | Description |
+#### `CascadeHandler.cs` (NEW)
+
+This is the brain of the cascade system. It listens for events and decides what triggers next.
+
+| Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `HandledEventTypes` (property) | — | `IEnumerable<Type>` | Types this handler responds to |
-| `Handle(FlightEvent evt)` | `evt` – incoming event | `void` | Process the event |
+| `CascadeHandler(AnomalyEngine engine)` | constructor | — | Injects AnomalyEngine reference |
+| `Handle(FlightEvent evt)` | event | `void` | Switch on event type. For each type, apply cascade table from section 3.1 |
+| `HandledEventTypes` | — | `IEnumerable<Type>` | EngineFireEvent, WingFireEvent, EngineExplosionEvent, SystemFailureEvent, AnomalyTriggeredEvent, FuelCriticalEvent |
 
----
+Internal logic example:
+```
+on EngineFireEvent received:
+    schedule: after 10 seconds, roll 30% → trigger WingFireAnomaly
 
-### 6.4 Handler Classes
+on EngineExplosionEvent received:
+    aircraft.WingSystem.ApplyDamage(0.4)
+    aircraft.Sensors.Engine1RPM.Kill()
+    publish AsymmetricDragEvent if wing health now < 20%
+```
 
 #### `BlackBoxHandler.cs`
 
-Records **every** event and every `TelemetryTickEvent` (every second) to an in-memory list. On flight end, serializes to file.
+Records everything. On `GameOverEvent` → immediately saves to file and triggers `BlackBoxReadoutView`.
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Handle(FlightEvent evt)` | `evt` | `void` | Appends to internal `List<FlightEvent>` |
-| `SaveToFile(string path)` | `path` – file path | `void` | Writes all events as JSON or structured text |
-| `GetFullHistory()` | — | `IReadOnlyList<FlightEvent>` | Returns complete event list |
+| `Handle(FlightEvent evt)` | event | `void` | Append to `List<FlightEvent>` |
+| `SaveToFile(string path)` | path | `void` | Write full event list as structured text |
+| `GetFullHistory()` | — | `IReadOnlyList<FlightEvent>` | All events |
+| `PrintReadout()` | — | `void` | Formatted black box print to console (used after game over) |
 
 #### `AlertSystemHandler.cs`
 
-Maintains a queue of active alert messages for display in the alerts bar.
-
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Handle(FlightEvent evt)` | `evt` | `void` | Adds formatted alert to `_alertQueue` |
-| `GetActiveAlerts()` | — | `IReadOnlyList<string>` | Returns alerts to display (max 3, oldest first) |
-| `DismissAlert(int index)` | `index` – alert index | `void` | Removes specific alert |
+| `Handle(FlightEvent evt)` | event | `void` | Add alert to queue |
+| `GetActiveAlerts()` | — | `IReadOnlyList<string>` | Max 3 most recent alerts |
+| `DismissAlert(int index)` | index | `void` | Remove one alert |
 
 #### `FlightLoggerHandler.cs`
 
-Writes human-readable log lines to a `.log` file.
-
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Handle(FlightEvent evt)` | `evt` | `void` | Formats and appends line to log file |
-| `SetLogPath(string path)` | `path` | `void` | Sets output file path |
+| `Handle(FlightEvent evt)` | event | `void` | Write formatted line to `.log` file |
+| `SetLogPath(string path)` | path | `void` | Set output file path |
 
 #### `StatisticsHandler.cs`
 
-Collects flight statistics for the post-flight report.
-
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Handle(FlightEvent evt)` | `evt` | `void` | Updates counters (anomaly count, max altitude, etc.) |
-| `GetStatistics()` | — | `FlightStatistics` | Returns aggregated stats record |
+| `Handle(FlightEvent evt)` | event | `void` | Update counters |
+| `GetStatistics()` | — | `FlightStatistics` | Aggregated stats for report |
 
 ---
 
-## 7. Module: Core/Commands – Pattern: Command
+## 9. Module: Core/Commands – Pattern: Command
 
----
-
-### 7.1 `IFlightCommand.cs`
+### 9.1 `IFlightCommand.cs`
 
 | Method / Property | Parameters | Returns | Description |
 |---|---|---|---|
-| `CommandName` (property) | — | `string` | Human-readable name ("Set Throttle 80%") |
-| `ExecutedAt` (property) | — | `DateTime` | Timestamp of execution |
-| `CanUndo` (property) | — | `bool` | Whether this command can be reversed |
-| `Execute()` | — | `void` | Applies the command to the aircraft |
-| `Undo()` | — | `void` | Reverses the command (if `CanUndo = true`) |
-| `GetDescription()` | — | `string` | One-line description for black box log |
+| `CommandName` | — | `string` | Human-readable name |
+| `ExecutedAt` | — | `DateTime` | Timestamp |
+| `CanUndo` | — | `bool` | Reversible flag |
+| `Execute()` | — | `void` | Apply command |
+| `Undo()` | — | `void` | Reverse command |
+| `GetDescription()` | — | `string` | One-line description for black box |
 
----
-
-### 7.2 Command Implementations
+### 9.2 Command Implementations
 
 | Class | Constructor Params | Execute | Undo | CanUndo |
 |---|---|---|---|---|
-| `SetThrottleCommand` | `Aircraft aircraft, double newThrottle` | Sets `FlightData.Throttle = newThrottle` | Restores previous throttle value | `true` |
-| `SetHeadingCommand` | `Aircraft aircraft, double newHeading` | Sets `FlightData.Heading = newHeading` | Restores previous heading | `true` |
-| `SetAltitudeCommand` | `Aircraft aircraft, double newAltitudeFt` | Sets autopilot target altitude | Restores previous target | `true` |
-| `ToggleAutopilotCommand` | `Aircraft aircraft` | Calls `AutopilotSystem.Engage()` or `Disengage()` | Reverses autopilot state | `true` |
-| `ActivateSystemCommand` | `Aircraft aircraft, SystemType system` | Calls appropriate system activation | Deactivates system | `true` |
-| `ResolveAnomalyCommand` | `Aircraft aircraft, IAnomaly anomaly` | Calls `anomaly.Resolve(aircraft)` | `CanUndo = false` (cannot un-resolve) | `false` |
-| `EmergencyDeclareCommand` | `Aircraft aircraft` | Calls `aircraft.DeclareEmergency()` | `CanUndo = false` | `false` |
-| `GoAroundCommand` | `Aircraft aircraft` | Calls `aircraft.Abort()` from landing state | `CanUndo = false` | `false` |
+| `SetThrottleCommand` | `Aircraft a, double newVal` | `FlightData.Throttle = newVal` | Restore previous | `true` |
+| `SetHeadingCommand` | `Aircraft a, double newVal` | `FlightData.TargetHeading = newVal` | Restore previous | `true` |
+| `SetAltitudeCommand` | `Aircraft a, double newVal` | Autopilot target altitude | Restore previous | `true` |
+| `ToggleAutopilotCommand` | `Aircraft a` | Engage or disengage | Reverse | `true` |
+| `ActivateSystemCommand` | `Aircraft a, SystemType sys` | Activate system | Deactivate | `true` |
+| `ResolveAnomalyCommand` | `Aircraft a, IAnomaly anomaly` | `anomaly.Resolve(a)` | Cannot un-resolve | `false` |
+| `EmergencyDeclareCommand` | `Aircraft a` | `a.DeclareEmergency()` | N/A | `false` |
+| `GoAroundCommand` | `Aircraft a` | `a.Abort()` | N/A | `false` |
 
----
-
-### 7.3 `CommandHistory.cs`
+### 9.3 `CommandHistory.cs`
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Execute(IFlightCommand cmd)` | `cmd` – command to run | `void` | Calls `cmd.Execute()`, pushes to undo stack, clears redo stack, publishes `CommandExecutedEvent` |
-| `Undo()` | — | `bool` | Pops from undo stack, calls `Undo()`, pushes to redo stack. Returns `false` if stack empty or `CanUndo = false` |
-| `Redo()` | — | `bool` | Pops from redo stack, re-executes. Returns `false` if stack empty |
-| `GetAll()` | — | `IReadOnlyList<IFlightCommand>` | All commands ever executed (for black box) |
-| `GetUndoable()` | — | `IReadOnlyList<IFlightCommand>` | Current undo stack |
-| `SaveToFile(string path)` | `path` – output file | `void` | Exports full command history as text (black box export) |
-| `Clear()` | — | `void` | Resets all stacks (new flight) |
+| `Execute(IFlightCommand cmd)` | command | `void` | Run, push to undo stack, publish `CommandExecutedEvent` |
+| `Undo()` | — | `bool` | Pop from undo, reverse, push to redo |
+| `Redo()` | — | `bool` | Pop from redo, re-execute |
+| `GetAll()` | — | `IReadOnlyList<IFlightCommand>` | Full command list for black box |
+| `SaveToFile(string path)` | path | `void` | Export history as text |
+| `Clear()` | — | `void` | Reset all stacks |
 
 ---
 
-## 8. Module: Controllers – MVC Controller
+## 10. Module: Controllers – MVC Controller
 
----
-
-### 8.1 `FlightController.cs`
-
-Orchestrates the entire simulation loop. Sits between Model and View.
+### 10.1 `FlightController.cs`
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `FlightController(Aircraft aircraft, IFlightView view, SimulationConfig config)` | constructor params | — | Wires up all components |
-| `RunAsync(CancellationToken ct)` | `ct` – cancellation token | `Task` | Main async game loop at 10 Hz. Each iteration: update model → tick anomalies → render view → read input → execute command |
-| `ExecuteCommand(IFlightCommand cmd)` | `cmd` – command to execute | `void` | Passes command to `CommandHistory.Execute()` |
-| `SetThrottle(double value)` | `value` – 0.0–1.0 | `void` | Creates and executes `SetThrottleCommand` |
-| `AdjustThrottle(double delta)` | `delta` – change amount | `void` | Adjusts throttle by delta, clamps 0.0–1.0 |
-| `SetHeading(double degrees)` | `degrees` – 0–360 | `void` | Creates and executes `SetHeadingCommand` |
-| `AdjustHeading(double delta)` | `delta` – degrees to turn | `void` | Adjusts heading by delta |
-| `SetTargetAltitude(double feet)` | `feet` – target alt | `void` | Creates and executes `SetAltitudeCommand` |
-| `ToggleAutopilot()` | — | `void` | Creates and executes `ToggleAutopilotCommand` |
-| `ExecuteTakeOff()` | — | `void` | Wraps `aircraft.TakeOff()` in a command |
-| `ExecuteLand()` | — | `void` | Wraps `aircraft.Land()` |
-| `ExecuteEmergency()` | — | `void` | Creates `EmergencyDeclareCommand` |
-| `ExecuteGoAround()` | — | `void` | Creates `GoAroundCommand` |
-| `ResolveTopAnomaly()` | — | `void` | Gets `AnomalyEngine.MostCritical`, creates `ResolveAnomalyCommand` |
-| `UndoLastCommand()` | — | `void` | Calls `CommandHistory.Undo()` |
-| `GetFlightReport()` | — | `FlightReport` | Builds and returns the post-flight report |
+| `FlightController(Aircraft a, IFlightView v, SimulationConfig cfg)` | constructor | — | Wire all components |
+| `RunAsync(CancellationToken ct)` | cancellation token | `Task` | Main 10 Hz loop |
+| `ExecuteCommand(IFlightCommand cmd)` | command | `void` | Pass to `CommandHistory.Execute()` |
+| `SetThrottle(double v)` | 0.0–1.0 | `void` | Create + execute `SetThrottleCommand` |
+| `AdjustThrottle(double delta)` | change | `void` | Throttle ± delta, clamp 0–1 |
+| `SetHeading(double deg)` | 0–360 | `void` | Create + execute `SetHeadingCommand` |
+| `AdjustHeading(double delta)` | degrees | `void` | Heading ± delta |
+| `SetTargetAltitude(double feet)` | feet | `void` | Create + execute `SetAltitudeCommand` |
+| `ToggleAutopilot()` | — | `void` | Create + execute `ToggleAutopilotCommand` |
+| `ExecuteTakeOff()` | — | `void` | `aircraft.TakeOff()` via command |
+| `ExecuteLand()` | — | `void` | `aircraft.Land()` via command |
+| `ExecuteEmergency()` | — | `void` | `EmergencyDeclareCommand` |
+| `ExecuteGoAround()` | — | `void` | `GoAroundCommand` |
+| `ResolveTopAnomaly()` | — | `void` | Get `AnomalyEngine.MostCritical`, create `ResolveAnomalyCommand` |
+| `UndoLastCommand()` | — | `void` | `CommandHistory.Undo()` |
+| `GetFlightReport()` | — | `FlightReport` | Build + return report |
 
 ---
 
-### 8.2 `InputHandler.cs`
-
-Reads keyboard input without blocking the render loop.
+### 10.2 `InputHandler.cs`
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Poll()` | — | `PlayerAction?` | Non-blocking. Returns `null` if no key pressed. Reads `Console.KeyAvailable` |
-| `SetKeyMap(Dictionary<ConsoleKey, PlayerAction> map)` | `map` – key to action mapping | `void` | Replaces default key bindings |
-| `GetKeyMap()` | — | `IReadOnlyDictionary<ConsoleKey, PlayerAction>` | Returns current bindings |
-| `IsKeyDown(ConsoleKey key)` | `key` – key to check | `bool` | Returns whether key is currently held (for analog controls) |
+| `Poll()` | — | `PlayerAction?` | Non-blocking. `Console.KeyAvailable` check. Returns null if nothing pressed |
+| `SetKeyMap(Dictionary<ConsoleKey, PlayerAction> map)` | map | `void` | Override default bindings |
+| `GetKeyMap()` | — | `IReadOnlyDictionary<ConsoleKey, PlayerAction>` | Current bindings |
 
 **Default key map:**
 
-| Key | PlayerAction |
+| Key | Action |
 |---|---|
-| `W` | `IncreaseThrottle` |
-| `S` | `DecreaseThrottle` |
-| `A` | `TurnLeft` |
-| `D` | `TurnRight` |
-| `Space` | `NextPhase` (TakeOff / Descend / Land depending on state) |
-| `Q` | `ToggleAutopilot` |
-| `E` | `DeclareEmergency` |
-| `R` | `ResolveAnomaly` |
-| `U` | `UndoLastCommand` |
-| `F` | `FlapsUp` |
-| `G` | `FlapsDown` |
-| `L` | `DeployGear` |
-| `H` | `GoAround` |
-| `Tab` | `ViewReport` |
-| `Escape` | `Quit` |
+| W | IncreaseThrottle |
+| S | DecreaseThrottle |
+| A | TurnLeft (adjust heading -5°) |
+| D | TurnRight (adjust heading +5°) |
+| Z | AltitudeUp (target +1000ft) |
+| X | AltitudeDown (target -1000ft) |
+| Space | NextPhase (context-sensitive: TakeOff / Descend / Land) |
+| Q | ToggleAutopilot |
+| E | DeclareEmergency |
+| R | ResolveAnomaly (most critical active) |
+| F | FlapsUp |
+| G | FlapsDown |
+| L | DeployGear |
+| H | GoAround |
+| U | UndoLastCommand |
+| Tab | ViewReport |
+| Escape | Quit |
 
 ---
 
-### 8.3 `AnomalyEngine.cs`
-
-Manages the pool of possible anomalies and randomly triggers them.
+### 10.3 `AnomalyEngine.cs`
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `AnomalyEngine(Aircraft aircraft, SimulationConfig config)` | constructor params | — | Initializes anomaly pool from `AnomalyFactory` |
-| `Tick(double deltaT)` | `deltaT` – seconds | `void` | Called each frame. Calls `TrySpawnAnomaly()` and `UpdateActiveAnomalies()` |
-| `TrySpawnAnomaly(double deltaT)` | `deltaT` – seconds | `void` | For each pooled anomaly, rolls probability vs spawn chance. Spawns at most 1 per tick. Probability weighted by state, weather, and elapsed flight time |
-| `UpdateActiveAnomalies(double deltaT)` | `deltaT` – seconds | `void` | Calls `Update()` on each active anomaly |
-| `ResolveAnomaly(string anomalyName)` | `anomalyName` – name match | `bool` | Finds active anomaly by name, calls `Resolve()` |
-| `AddToPool(IAnomaly anomaly)` | `anomaly` – to add | `void` | Adds custom anomaly to pool |
-| `ActiveAnomalies` (property) | — | `IReadOnlyList<IAnomaly>` | Currently active anomalies |
-| `MostCritical` (property) | — | `IAnomaly?` | Active anomaly with highest `Severity` |
-| `SetDifficulty(Difficulty d)` | `d` – Easy/Normal/Hard | `void` | Adjusts global probability multiplier |
+| `AnomalyEngine(Aircraft a, SimulationConfig cfg)` | constructor | — | Initialize pool from `AnomalyFactory` |
+| `Tick(double dt)` | dt | `void` | `TrySpawnAnomaly()` + `UpdateActiveAnomalies()` |
+| `TrySpawnAnomaly(double dt)` | dt | `void` | Roll probability per anomaly. At most 1 new per 30 seconds |
+| `UpdateActiveAnomalies(double dt)` | dt | `void` | Call `Update()` on each active anomaly |
+| `ForceSpawn(IAnomaly anomaly)` | anomaly | `void` | Used by `CascadeHandler` to inject cascade anomalies |
+| `ResolveAnomaly(string name)` | name | `bool` | Find + resolve by name |
+| `ActiveAnomalies` | — | `IReadOnlyList<IAnomaly>` | Currently active |
+| `MostCritical` | — | `IAnomaly?` | Highest severity active anomaly |
+| `SetDifficulty(Difficulty d)` | difficulty | `void` | Adjust probability multiplier |
 
-**Spawn weighting logic (inside `TrySpawnAnomaly`):**
+**Spawn weighting:**
 - Base probability from `IAnomaly.Probability`
-- Multiplied by `config.AnomalyFrequency`
-- +50% during `TakeOffState` and `LandingState`
-- +20% per hour of flight elapsed
+- × `config.AnomalyFrequency`
+- +50% in TakeOffState and LandingState
+- +20% per hour of flight
 - +30% if weather `IsHazardous`
 - Max 1 new anomaly per 30 seconds
+- Fire anomalies can only be force-spawned by cascade (not random)
 
 ---
 
-## 9. Module: Views – MVC View
+## 11. Module: Views – MVC View
 
----
+**Rule: View NEVER modifies model data. It only reads through public properties.**
 
-### 9.1 `IFlightView.cs`
+### 11.1 `IFlightView.cs`
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Render(Aircraft aircraft)` | `aircraft` – current state | `void` | Full redraw of the dashboard |
-| `ShowAlert(string message, AlertLevel level)` | message + severity | `void` | Pushes an alert to the alerts bar |
-| `ShowMenu(IReadOnlyList<string> options)` | `options` – action list | `void` | Renders action menu |
-| `ShowGameOver(string reason)` | `reason` – crash reason | `void` | Shows crash screen |
-| `ShowFlightReport(FlightReport report)` | `report` – end of flight data | `void` | Renders post-flight summary |
-| `Clear()` | — | `void` | Clears the console |
+| `Render(Aircraft aircraft)` | aircraft | `void` | Full dashboard redraw |
+| `ShowAlert(string msg, AlertLevel level)` | message + level | `void` | Push to alerts bar |
+| `ShowMenu(IReadOnlyList<string> options)` | options | `void` | Render action menu |
+| `ShowGameOver(string reason)` | reason | `void` | Crash screen |
+| `ShowFlightReport(FlightReport report)` | report | `void` | End of flight summary |
+| `Clear()` | — | `void` | Clear console |
 
 ---
 
-### 9.2 `ConsoleDashboardView.cs`
-
-**IMPORTANT:** Never modify model data. Read all data through `Aircraft` public properties.
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `Render(Aircraft aircraft)` | aircraft | `void` | Calls all widget render methods in order, uses `Console.SetCursorPosition()` for in-place redraw (no flicker) |
-| `RenderHeader(Aircraft a)` | aircraft | `void` | Top bar: tail number, model, flight time, state name (colored by `StateColor`) |
-| `RenderPFD(FlightData fd)` | telemetry | `void` | Primary Flight Display: altitude, speed, heading, vertical speed, G-force, pitch, roll |
-| `RenderFuelGauge(FuelSystem fuel)` | fuel system | `void` | ASCII progress bar `[████████░░░░]` with % and kg |
-| `RenderSystemsPanel(Aircraft a)` | aircraft | `void` | Grid of all systems with health indicator: `[OK]` green / `[WARN]` yellow / `[FAIL]` red |
-| `RenderWeatherPanel(WeatherSystem ws)` | weather system | `void` | Weather name, wind speed/direction, turbulence level, visibility |
-| `RenderAlertsBar(IReadOnlyList<string> alerts)` | active alert strings | `void` | Up to 3 scrolling alert lines with blinking `!!` for Critical |
-| `RenderActionMenu(IAircraftState state)` | current state | `void` | Shows `AllowedActions` as `[KEY] Action` pairs |
-| `RenderFlightMap(FlightData fd)` | telemetry | `void` | 20×10 ASCII grid showing aircraft position symbol (`✈`) and waypoint |
-| `RenderAttitudeIndicator(double pitch, double roll)` | pitch/roll degrees | `void` | ASCII artificial horizon with `---` horizon line and `✈` symbol |
+### 11.2 `ConsoleDashboardView.cs`
 
 **Rendering strategy:**
-- Use `Console.SetCursorPosition(0, 0)` at start of each `Render()` call to redraw in-place
-- Use `Console.ForegroundColor` / `Console.BackgroundColor` for colors
-- Use `Console.CursorVisible = false` at startup
-- Render to a `string[]` buffer first, then flush all at once to minimize flicker
-
----
-
-### 9.3 View Widget Classes (in `Views/Components/`)
-
-Each widget renders one section of the dashboard as a string array.
-
-| Class | Method | Returns | Description |
-|---|---|---|---|
-| `AltimeterWidget` | `Render(double altitude, double verticalSpeed)` | `string[]` | Vertical tape with current altitude and trend arrow |
-| `AirspeedWidget` | `Render(double ias, double tas, double vmo)` | `string[]` | Speed tape with color zones (green/yellow/red) |
-| `FuelGaugeWidget` | `Render(double pct, double kg, double rangeKm)` | `string[]` | Bar + numbers + range estimate |
-| `SystemsPanelWidget` | `Render(IReadOnlyList<IAvionicSystem> systems)` | `string[]` | 2-column system status grid |
-| `AlertsBarWidget` | `Render(IReadOnlyList<string> alerts)` | `string[]` | Alert list with severity colors |
-| `ActionMenuWidget` | `Render(IReadOnlyList<string> actions, Dictionary<string,ConsoleKey> keyMap)` | `string[]` | Key–action pairs grid |
-
----
-
-### 9.4 `StartupScreen.cs`
+- `Console.SetCursorPosition(0, 0)` at start — no flicker (overwrites in place)
+- `Console.CursorVisible = false` at startup
+- Build full frame as `string[]` buffer, then write all at once
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `Show()` | — | `StartupSelection` | Renders ASCII logo, aircraft selector, difficulty picker. Blocks until player confirms |
-| `SelectAircraft()` | — | `AircraftConfig` | Shows numbered list of aircraft (Boeing 737, A320, Cessna). Returns selected config |
-| `SelectDifficulty()` | — | `Difficulty` | Easy / Normal / Hard selection |
+| `Render(Aircraft a)` | aircraft | `void` | Calls all widgets in order |
+| `RenderHeader(Aircraft a)` | aircraft | `void` | State name (state color), tail, model, flight time, difficulty |
+| `RenderPFD(SensorSystem s)` | sensors | `void` | **Reads from SENSORS not FlightData.** Shows sensor readings with fault markers |
+| `RenderFuelGauge(SensorSystem s)` | sensors | `void` | Fuel bar from sensor reading. If sensor fault → shows "FAULT" |
+| `RenderSystemsPanel(Aircraft a)` | aircraft | `void` | Grid: ENG1/ENG2/WING/HYD/ELEC/NAV. Color by health. Shows fire state |
+| `RenderSensorsPanel(SensorSystem s)` | sensors | `void` | NEW: Grid of all sensors with OK/NOISY/FAULT/DEAD |
+| `RenderWeatherPanel(WeatherSystem ws)` | weather | `void` | Weather name, wind, turbulence, visibility |
+| `RenderAlertsBar(IReadOnlyList<string> alerts)` | alerts | `void` | Up to 3 alert lines. Critical blinks |
+| `RenderActionMenu(IAircraftState state)` | state | `void` | `AllowedActions` as key-action pairs |
+| `RenderFlightMap(FlightData fd, List<MapObject> objects)` | telemetry + objects | `void` | 40x12 ASCII grid with plane (A), birds (*), waypoints (+) |
+| `RenderCockpitWindow(double pitch, double roll, FireState wingFire)` | attitude + fire | `void` | ASCII horizon view. If wing fire → show fire chars on side |
 
 ---
 
-## 10. Module: Infrastructure
+### 11.3 View Widget Classes
 
----
-
-### 10.1 `SimulationConfig.cs` (Singleton)
-
-| Method / Property | Params | Returns | Description |
+| Class | Method signature | Returns | Description |
 |---|---|---|---|
-| `Instance` (static) | — | `SimulationConfig` | Lazy singleton |
-| `SimulationSpeed` | — | `double` | Time multiplier (1.0 = real-time, 5.0 = 5× faster) |
-| `AnomaliesEnabled` | — | `bool` | Master toggle for anomaly spawning |
-| `AnomalyFrequency` | — | `double` | Probability multiplier (1.0 = normal, 2.0 = double) |
-| `BlackBoxEnabled` | — | `bool` | Whether to write black box files |
-| `LogDirectory` | — | `string` | Output path for logs and reports |
-| `LoadFromFile(string path)` | `path` – JSON config file | `void` | Deserializes config from JSON |
-| `SaveToFile(string path)` | `path` – output path | `void` | Serializes current config to JSON |
+| `AltimeterWidget` | `Render(double sensorAlt, SensorState state)` | `string[]` | Altitude reading with FAULT marker if sensor bad |
+| `AirspeedWidget` | `Render(double sensorSpd, double vmo, SensorState state)` | `string[]` | Speed tape, red if near VMO |
+| `FuelGaugeWidget` | `Render(double sensorPct, double kg, double range)` | `string[]` | Bar + kg + range. "FAULT" if sensor dead |
+| `SystemsPanelWidget` | `Render(IReadOnlyList<IAvionicSystem> systems, DamageModel dm)` | `string[]` | Shows fire state + health per system |
+| `SensorsPanelWidget` | `Render(SensorSystem sensors)` | `string[]` | NEW: all sensors, color by state |
+| `AlertsBarWidget` | `Render(IReadOnlyList<string> alerts)` | `string[]` | Alert list |
+| `ActionMenuWidget` | `Render(IReadOnlyList<string> actions)` | `string[]` | Key-action pairs |
+| `FlightMapWidget` | `Render(double mapX, double mapY, double heading, IReadOnlyList<MapObject> objects)` | `string[]` | 40x12 grid. A=plane, *=bird, +=waypoint, ~=weather zone |
+| `CockpitWindowWidget` | `Render(double pitch, double roll, FireState wingFire, FireState engine1Fire)` | `string[]` | ASCII horizon. Roll tilts horizon line. Fire = "***FIRE***" |
 
 ---
 
-### 10.2 `FlightLogger.cs`
+### 11.4 `CockpitWindowWidget.cs` — how it works
+
+```
+pitch = -2.0  roll = +5.0
+Wing fire on LEFT side:
+
+***FIRE***  sky sky sky sky sky sky sky sky
+sky sky sky sky sky sky sky sky sky sky sky
+ ------- horizon --- A -- horizon -------
+gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd
+gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd
+```
+
+- `pitch` shifts horizon line up/down
+- `roll` tilts horizon line left/right (slant using `/` `\` chars)
+- `A` symbol is always centered (the plane)
+- `***FIRE***` appears on correct side when wing/engine is on fire
+- If engine explodes → one `EXPLOSION` flash frame then engine removed from view
+
+---
+
+### 11.5 `StartupScreen.cs` (UPDATED)
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `FlightLogger(string logDirectory)` | `logDirectory` – path | — | Creates log file named `flight_YYYYMMDD_HHmmss.log` |
-| `Log(LogLevel level, string message, string source)` | level, message, source | `void` | Appends formatted line: `[HH:mm:ss][LEVEL][source] message` |
-| `LogEvent(FlightEvent evt)` | `evt` | `void` | Formats and logs any `FlightEvent` |
-| `LogTelemetry(FlightData data)` | `data` | `void` | Writes one CSV telemetry row (called every second) |
-| `SaveFlightReport(FlightReport report)` | `report` | `void` | Writes formatted text report to file |
-| `Flush()` | — | `void` | Forces write of buffered output |
-| `Close()` | — | `void` | Closes log file handle |
+| `Show()` | — | `StartupSelection` | Full startup sequence |
+| `SelectAircraft()` | — | `AircraftConfig` | Numbered list with stats (speed, range, fuel, wing strength) |
+| `SelectRoute()` | — | `RouteConfig` | Short (30min) / Medium (1hr) / Long (2hr). Sets waypoints A→B |
+| `SelectDifficulty()` | — | `Difficulty` | Easy (no anomalies) / Normal / Hard (full cascades enabled) |
+| `ShowAircraftStats(AircraftConfig cfg)` | config | `void` | ASCII stat bars for each aircraft |
 
 ---
 
-### 10.3 `FlightReport.cs`
+### 11.6 `BlackBoxReadoutView.cs` (NEW)
 
-Data class (record) representing the completed flight summary.
+Shown after game over. Prints the complete black box in a dramatic terminal-style readout.
+
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `Show(IReadOnlyList<FlightEvent> events, IReadOnlyList<IFlightCommand> commands)` | full history | `void` | Prints line by line, with brief pause between lines (typewriter effect) |
+| `PrintHeader()` | — | `void` | "=== FLIGHT DATA RECORDER READOUT ===" |
+| `PrintEventLine(FlightEvent evt)` | event | `void` | `[HH:mm:ss] [LEVEL] [SOURCE] Message` |
+| `PrintCommandLine(IFlightCommand cmd)` | command | `void` | `[HH:mm:ss] PILOT ACTION: description` |
+| `PrintSummary(DamageModel dm)` | damage model | `void` | Final state of all systems + game over reason |
+
+---
+
+## 12. Module: Infrastructure
+
+### 12.1 `SimulationConfig.cs` (Singleton)
+
+| Property / Method | Returns | Description |
+|---|---|---|
+| `Instance` (static) | `SimulationConfig` | Lazy singleton |
+| `SimulationSpeed` | `double` | 1.0 = real-time |
+| `AnomaliesEnabled` | `bool` | Master toggle |
+| `AnomalyFrequency` | `double` | Probability multiplier |
+| `CascadesEnabled` | `bool` | NEW: whether cascade chains fire |
+| `BlackBoxEnabled` | `bool` | Write to file |
+| `LogDirectory` | `string` | Output path |
+| `LoadFromFile(string path)` | `void` | Load JSON |
+| `SaveToFile(string path)` | `void` | Save JSON |
+
+---
+
+### 12.2 `FlightLogger.cs`
+
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `FlightLogger(string logDir)` | directory | — | Creates timestamped log file |
+| `Log(LogLevel level, string msg, string src)` | — | `void` | `[HH:mm:ss][LEVEL][src] msg` |
+| `LogEvent(FlightEvent evt)` | event | `void` | Formatted event line |
+| `LogTelemetry(FlightData data)` | data | `void` | CSV row every second |
+| `SaveFlightReport(FlightReport report)` | report | `void` | Write formatted report |
+| `Flush()` | — | `void` | Force write buffer |
+| `Close()` | — | `void` | Close file handle |
+
+---
+
+### 12.3 `FlightReport.cs`
 
 ```csharp
 public record FlightReport
 {
-    public string    TailNumber        { get; init; }
-    public string    Model             { get; init; }
-    public DateTime  DepartureTime     { get; init; }
-    public TimeSpan  FlightDuration    { get; init; }
-    public double    DistanceKm        { get; init; }
-    public double    FuelUsedKg        { get; init; }
-    public double    MaxAltitudeFt     { get; init; }
-    public double    MaxSpeedKts       { get; init; }
-    public int       AnomaliesTotal    { get; init; }
-    public int       AnomaliesResolved { get; init; }
-    public bool      LandedSafely      { get; init; }
-    public double    TouchdownSpeedKts { get; init; }
-    public double    LandingScore      { get; init; }    // 0–100
-    public IReadOnlyList<FlightEvent>      EventLog  { get; init; }
-    public IReadOnlyList<IFlightCommand>   CommandLog { get; init; }
+    public string    TailNumber         { get; init; }
+    public string    Model              { get; init; }
+    public DateTime  DepartureTime      { get; init; }
+    public TimeSpan  FlightDuration     { get; init; }
+    public double    DistanceKm         { get; init; }
+    public double    FuelUsedKg         { get; init; }
+    public double    MaxAltitudeFt      { get; init; }
+    public double    MaxSpeedKts        { get; init; }
+    public int       AnomaliesTotal     { get; init; }
+    public int       AnomaliesResolved  { get; init; }
+    public int       CascadesTriggered  { get; init; }  // NEW
+    public bool      LandedSafely       { get; init; }
+    public double    TouchdownSpeedKts  { get; init; }
+    public double    LandingScore       { get; init; }   // 0–100
+    public string    GameOverReason     { get; init; }   // null if landed safely
+    public IReadOnlyList<FlightEvent>    EventLog    { get; init; }
+    public IReadOnlyList<IFlightCommand> CommandLog  { get; init; }
 
     public void PrintToConsole();
     public void SaveAsText(string path);
 }
 ```
 
-**Landing score formula:**  
-`score = 100 - (speedPenalty) - (verticalSpeedPenalty) - (anomalyPenalty) - (crosswindPenalty)`
+**Landing score formula:**
+`score = 100 - speedPenalty - verticalSpeedPenalty - anomalyPenalty - crosswindPenalty - cascadePenalty`
 
 ---
 
-### 10.4 `AircraftFactory.cs`
+### 12.4 `AircraftFactory.cs`
+
+| Method | Returns | Boeing 737-800 values |
+|---|---|---|
+| `CreateBoeing737()` | `Aircraft` | Fuel=26000kg, MaxAlt=41000ft, Cruise=460kts, V1=148, VR=152, V2=158, WingStrength=0.85 |
+| `CreateAirbusA320()` | `Aircraft` | Fuel=18800kg, MaxAlt=39800ft, Cruise=450kts, V1=142, VR=146, V2=152, WingStrength=0.90 |
+| `CreateCessna172()` | `Aircraft` | Fuel=212kg, MaxAlt=14000ft, Cruise=122kts, V1=55, VR=60, V2=65, WingStrength=0.70 |
+| `Create(AircraftConfig cfg, string tail, string model)` | `Aircraft` | Generic |
+
+---
+
+### 12.5 `AnomalyFactory.cs`
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `CreateBoeing737()` | — | `Aircraft` | Boeing 737-800 with full config |
-| `CreateAirbusA320()` | — | `Aircraft` | Airbus A320 with full config |
-| `CreateCessna172()` | — | `Aircraft` | Small GA aircraft, lower speeds and altitude |
-| `Create(AircraftConfig config, string tail, string model)` | full params | `Aircraft` | Generic factory for custom aircraft |
-
-**Boeing 737-800 config:**
-```
-MaxFuelKg=26000, MaxAltitudeFt=41000, CruiseSpeedKts=460, MaxSpeedKts=544,
-StallSpeedKts=130, StallSpeedFlaps=105, EngineCount=2, MaxThrustKN=242.8,
-V1=148kts, VR=152kts, V2=158kts
-```
+| `Create(AnomalyType type)` | type | `IAnomaly` | New instance |
+| `CreateRandom(FlightData ctx)` | telemetry | `IAnomaly` | Weighted random based on alt/speed/state |
+| `GetAllFor(IAircraftState state)` | state | `IReadOnlyList<IAnomaly>` | Valid anomalies for this state |
+| `GetPool()` | — | `IReadOnlyList<IAnomaly>` | Full default pool |
+| `CreateCascade(AnomalyType type)` | type | `IAnomaly` | For cascade injection (skips probability check) |
 
 ---
 
-### 10.5 `AnomalyFactory.cs`
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `Create(AnomalyType type)` | `type` – enum | `IAnomaly` | Returns new instance of requested anomaly |
-| `CreateRandom(FlightData ctx)` | `ctx` – current telemetry | `IAnomaly` | Weighted random selection based on altitude, speed, state |
-| `GetAllFor(IAircraftState state)` | `state` – current state | `IReadOnlyList<IAnomaly>` | Returns anomalies valid for given state |
-| `GetPool()` | — | `IReadOnlyList<IAnomaly>` | Returns default full anomaly pool |
-
----
-
-## 11. Gameplay Loop & Input Map
+## 13. Gameplay Loop & Input Map
 
 ### Complete Game Flow
 
 ```
 Program.cs
-  ↓
-StartupScreen.Show()           → player picks aircraft + difficulty
-  ↓
-AircraftFactory.Create()       → creates Aircraft
-  ↓
-FlightController.RunAsync()    → 10 Hz game loop
-  ├── aircraft.Update(deltaT)
-  ├── anomalyEngine.Tick(deltaT)
-  ├── view.Render(aircraft)
-  ├── input = inputHandler.Poll()
-  └── controller.ExecuteCommand(...)
-  ↓
-[flight ends: LandingCompletedEvent or CriticalState crash]
-  ↓
-FlightReport generated + shown
-  ↓
-BlackBox saved to file
+  |
+  StartupScreen.Show()
+    SelectAircraft()      -> AircraftFactory.Create()
+    SelectRoute()         -> sets FlightData.TargetWaypoint
+    SelectDifficulty()    -> SimulationConfig settings
+  |
+  FlightController.RunAsync()
+    |
+    [10 Hz loop]
+    aircraft.Update(dt)         <- physics, all systems, damage model
+    sensorSystem.Update(dt)     <- sensors read real values
+    anomalyEngine.Tick(dt)      <- random events + cascade injections
+    view.Render(aircraft)       <- full redraw from SENSOR readings
+    input = inputHandler.Poll() <- non-blocking keyboard
+    if (input != null)
+        controller.Execute(input)
+    if (damageModel.IsGameOver)
+        -> BlackBoxReadoutView.Show()
+        -> FlightReportView.Show()
+        -> break loop
+    Thread.Sleep(100)
+  |
+  [flight ends normally: LandingCompletedEvent]
+    FlightReportView.Show()
+    BlackBoxHandler.SaveToFile()
 ```
 
 ### State Transition Diagram
 
 ```
-                    +----------+
-             -----> | GROUND   | <--------------------------+
-             |      +----+-----+                           |
-             |           | TakeOff() OK                    |
-             |           v                                 |
-             |      +----+------+                          |
-             |      |  TAXI    |                           |
-             |      +----+------+                          |
-             |           | at runway                       |
-             |           v                                 |
-             |      +----+-------+  Abort(<V1)             |
-             |      | TAKE OFF   | ------> [brake] --------+
-             |      +----+-------+                         
-             |           | 1500ft + V2                     
-             |           v                                 
-             |      +----+----+                           
-             |      |  CLIMB  |                           
-             |      +----+----+                           
-             |           | target alt                      
-             |           v                                 
-             |      +----+-----+                          
-             |      | CRUISE   | <---+                    
-             |      +----+-----+     |                    
-             |           |Descend()  | (holding cleared)  
-             |           v           |                    
-             |      +----+------+    +-- +----------+     
-             |      | DESCENT  |        | HOLDING  |     
-             |      +----+------+        +----------+     
-             |           | <3000ft                        
-             |           v                                 
-             |      +----+------+  Abort()                
-             +------| LANDING  | -------> [go-around] --> CLIMB
-                    +----+------+                          
-                         | touchdown + full stop           
-                         v                                 
-                      [GROUND] (loop complete)             
+                 +----------+
+          -----> |  GROUND  | <---------------------------+
+          |      +----+-----+                             |
+          |           | TakeOff() OK                      |
+          |           v                                   |
+          |      +----+------+                            |
+          |      |   TAXI   |                             |
+          |      +----+------+                            |
+          |           | at runway                         |
+          |           v                                   |
+          |      +----+--------+  Abort (<V1)             |
+          |      |  TAKE OFF  | ----------> [brake] ------+
+          |      +----+--------+
+          |           | 1500ft + V2
+          |           v
+          |      +----+-----+
+          |      |  CLIMB   |
+          |      +----+-----+
+          |           | target alt
+          |           v
+          |      +----+------+
+          |      |  CRUISE   | <----+
+          |      +----+------+      |
+          |           | Descend()   | (holding cleared)
+          |           v             |
+          |      +----+-------+  +--+---------+
+          |      |  DESCENT  |  |  HOLDING   |
+          |      +----+-------+  +------------+
+          |           | <3000ft
+          |           v
+          |      +----+-------+  Abort()
+          +------| LANDING   | ---------> [go-around] --> CLIMB
+                 +----+-------+
+                      | touchdown + stop
+                      v
+                  [GROUND]
 
- ANY STATE --[HandleEmergency()]--> EMERGENCY ---> CRITICAL (if escalated)
+  ANY STATE --[HandleEmergency()]--> EMERGENCY ---> CRITICAL
+  CRITICAL --[DamageModel.IsGameOver]--> GAME OVER -> BlackBoxReadout
 ```
 
 ---
 
-## 12. Black Box & Flight Logging
-
-The black box records everything automatically via `BlackBoxHandler` (Observer).
+## 14. Black Box & Flight Logging
 
 ### What gets recorded
 
-| Event Type | Details stored |
+| Event | Details stored |
 |---|---|
-| Every `TelemetryTickEvent` (1/sec) | Altitude, speed, heading, throttle, RPM, fuel, G-force |
-| Every state transition | Old state, new state, timestamp |
-| Every anomaly trigger | Anomaly name, severity, aircraft params at moment of trigger |
-| Every anomaly resolve attempt | Success/fail, aircraft params |
-| Every player input | Key pressed, resulting action, timestamp |
-| Every command executed | Command name, parameter values, pre/post state snapshot |
-| Every system failure | System name, health at failure |
-| Landing | Touch-down speed, vertical speed, runway offset |
+| `TelemetryTickEvent` (every 1 sec) | Altitude, speed, heading, throttle, RPM ×2, fuel, G-force, pitch, roll, all sensor readings |
+| State transition | Old state, new state, timestamp |
+| Anomaly triggered | Anomaly name, severity, snapshot of FlightData |
+| Anomaly resolved (success/fail) | Anomaly name, result, snapshot |
+| **Cascade triggered** | Source anomaly, target anomaly, timestamp |
+| **Sensor fault** | Sensor name, new state, real value vs reported value |
+| **Fire events** | Engine/wing fire start, spread, explosion |
+| **Asymmetric drag activated** | Drift rate, damaged side |
+| Player input | Key, action, timestamp |
+| Command executed | Name, params, pre/post snapshot |
+| System failure | System name, health |
+| Landing | Touchdown speed, V/S, crosswind component |
+| **Game over** | Reason, final state of all systems |
 
-### Output files (saved to `LogDirectory`)
+### Output files
 
 | File | Format | Content |
 |---|---|---|
 | `flight_YYYYMMDD_HHmmss.log` | Plain text | Human-readable event log |
-| `blackbox_YYYYMMDD_HHmmss.txt` | Structured text | Full raw event dump |
-| `telemetry_YYYYMMDD_HHmmss.csv` | CSV | One row per second: all `FlightData` fields |
+| `blackbox_YYYYMMDD_HHmmss.txt` | Structured text | Full raw event + sensor dump |
+| `telemetry_YYYYMMDD_HHmmss.csv` | CSV | One row per second: all FlightData + sensor readings |
 | `report_YYYYMMDD_HHmmss.txt` | Plain text | Formatted flight summary |
+
+### Black Box readout after game over (example output)
+
+```
+=== FLIGHT DATA RECORDER — AeroSim ===
+AIRCRAFT: SP-LRA Boeing 737-800
+FLIGHT DURATION: 00:47:23
+=== EVENT LOG ===
+[00:12:44] [INFO]     [WeatherSystem]   Weather changed: THUNDERSTORM
+[00:18:02] [HIGH]     [AnomalyEngine]   TURBULENCE triggered -- severity: HIGH
+[00:18:02] [WARN]     [SensorSystem]    SENSOR NOISE added to all sensors
+[00:18:45] [HIGH]     [AnomalyEngine]   BIRD STRIKE triggered -- ENG1
+[00:18:45] [CRIT]     [CascadeHandler]  CASCADE: BirdStrike -> EngineFireAnomaly
+[00:18:45] [INFO]     [PlayerInput]     PILOT ACTION: ResolveAnomaly (EngineFireAnomaly)
+[00:18:46] [INFO]     [EngineSystem]    Fire suppression: FAILED (health too low)
+[00:18:50] [CRIT]     [CascadeHandler]  CASCADE: EngineFire -> WingFireAnomaly
+[00:18:50] [CRIT]     [WingSystem]      WING FIRE started
+[00:19:14] [CRIT]     [WingSystem]      Wing health 50% -- ASYMMETRIC DRAG ACTIVE
+[00:19:14] [INFO]     [PlayerInput]     PILOT ACTION: DeclareEmergency
+[00:19:14] [CRIT]     [Aircraft]        STATE: Cruise -> EmergencyState
+[00:19:44] [CRIT]     [WingSystem]      Wing health 20% -- ELECTRICAL FAILURE (wiring)
+[00:20:02] [CRIT]     [WingSystem]      Wing health 0% -- STRUCTURAL FAILURE
+[00:20:02] [FATAL]    [DamageModel]     GAME OVER: Wing structural failure
+=== FINAL SYSTEM STATE ===
+  ENGINE 1:  FAILED (exploded)      ENGINE 2:  OK (72%)
+  WING:      DESTROYED              HYDRAULICS: OK
+  ELECTRICAL: FAILED                FUEL: 38% remaining
+  SENSORS:   ENG1-RPM: DEAD | ALT-SNS: NOISY | others: OK
+=== END OF RECORDING ===
+```
 
 ---
 
-## 13. Implementation Roadmap
+## 15. Implementation Roadmap
 
-> Follow this order strictly. Each stage builds on the previous one.
+> Follow stages in order. Each builds on the previous.
 
-### Stage 1 – Foundation (~500 LOC)
-- [ ] Create directory structure
-- [ ] Implement all enums (`SystemType`, `SystemStatus`, `Severity`, `PlayerAction`, `AnomalyType`)
-- [ ] Implement `AircraftConfig` (record)
-- [ ] Implement `FlightData` with all properties and methods
+### Stage 1 – Foundation (~600 LOC)
+- [ ] Create full directory structure
+- [ ] Implement all enums: `SystemType`, `SystemStatus`, `Severity`, `PlayerAction`, `AnomalyType`, `FireState`, `SensorState`
+- [ ] Implement `AircraftConfig` (record with all fields including WingStrength)
+- [ ] Implement `FlightData` (all properties + methods + `ApplyAsymmetricDrift()`)
 - [ ] Implement `FlightDataSnapshot` (record)
+- [ ] Implement `DamageModel` (all properties + `Update()` + `CheckGameOver()`)
 - [ ] Implement `IAvionicSystem` interface
-- [ ] Stub all system classes (empty `Update`, `ApplyDamage`, `Repair`)
-- [ ] Write unit tests for `FlightData` calculated properties
+- [ ] Stub all system classes with empty methods
+- [ ] Unit tests: `FlightData` calculations, `DamageModel.CheckGameOver()`
 
-### Stage 2 – State Pattern (~1,500 LOC)
+### Stage 2 – Sensor System (~500 LOC)
+- [ ] Implement `ISensor` interface
+- [ ] Implement `Sensor` base class (Read with noise, ApplyDamage, Kill, Repair)
+- [ ] Implement `SensorSystem` (all sensors, `Update()`, `GetReading()`, `AddNoiseToAll()`, `DamageRandomSensor()`)
+- [ ] Add `Sensors` property to `Aircraft`
+- [ ] Unit tests: sensor noise, sensor fault returns stuck value, sensor dead returns -1
+
+### Stage 3 – State Pattern (~1,500 LOC)
 - [ ] Implement `IAircraftState`
-- [ ] Implement `Aircraft` class with `TransitionTo()` and all delegate methods
-- [ ] Implement `GroundState` (full)
-- [ ] Implement `TaxiState` (full)
-- [ ] Implement `TakeOffState` with V1/VR/V2 logic
-- [ ] Implement `ClimbState`
-- [ ] Implement `CruiseState` (without anomalies yet)
-- [ ] Implement `DescentState`
-- [ ] Implement `LandingState` with ILS tracking
-- [ ] Implement `HoldingState`
-- [ ] Implement `EmergencyState` and `CriticalState`
+- [ ] Implement `Aircraft` with `TransitionTo()` and all delegates
+- [ ] Implement all 10 states (Ground, Taxi, TakeOff, Climb, Cruise, Descent, Landing, Holding, Emergency, Critical)
+- [ ] Wire `DamageModel.CheckGameOver()` into `CriticalState.Update()`
+- [ ] Wire asymmetric drag into `CruiseState.Update()` and `LandingState.Update()`
 - [ ] Test full flight: Ground → Taxi → TakeOff → Climb → Cruise → Descent → Landing → Ground
 
-### Stage 3 – Observer Pattern (~600 LOC)
-- [ ] Implement all `FlightEvent` subclasses
-- [ ] Implement `EventBus` (Singleton, thread-safe with lock)
+### Stage 4 – Observer Pattern (~700 LOC)
+- [ ] Implement all `FlightEvent` subclasses (include new: CascadeTriggered, EngineFire, WingFire, EngineExplosion, AsymmetricDrag, GameOver, SensorFault)
+- [ ] Implement `EventBus` (Singleton, thread-safe lock)
 - [ ] Implement `IFlightEventHandler`
-- [ ] Implement `BlackBoxHandler`
+- [ ] Implement `BlackBoxHandler` (with `PrintReadout()` for game over)
 - [ ] Implement `AlertSystemHandler`
 - [ ] Implement `FlightLoggerHandler`
 - [ ] Implement `StatisticsHandler`
-- [ ] Wire all events into state `OnEnter()`, `OnExit()`, `Update()`
+- [ ] Wire events into all states
 
-### Stage 4 – Strategy Pattern: Anomalies (~2,000 LOC)
-- [ ] Implement `IAnomaly` and `AbstractAnomaly`
-- [ ] Implement all 10 anomaly classes (one at a time, test each)
-- [ ] Implement `IWeatherStrategy`
-- [ ] Implement all 6 weather strategy classes
-- [ ] Implement `AnomalyFactory` and `WeatherFactory`
-- [ ] Implement `AnomalyEngine` with full spawn logic
-- [ ] Integrate `AnomalyEngine.Tick()` into `CruiseState.Update()`
+### Stage 5 – Avionics Systems Full (~900 LOC)
+- [ ] Fully implement `EngineSystem` (RPM curves, temp, fire, explode, restart)
+- [ ] Fully implement `FuelSystem` (burn, leak, ignition risk, emergency dump)
+- [ ] Fully implement `WingSystem` (fire spread, melt, asymmetric drag trigger)
+- [ ] Fully implement `HydraulicSystem` (gear, flaps, jam, emergency extension)
+- [ ] Fully implement `ElectricalSystem` (buses, backup, APU, de-icing)
+- [ ] Fully implement `NavigationSystem` (waypoints, autopilot coupling)
+- [ ] Fully implement `AutopilotSystem` (all modes, sensor-coupled altitude hold)
 
-### Stage 5 – Command Pattern (~700 LOC)
+### Stage 6 – Strategy: Anomalies + Cascades (~2,200 LOC)
+- [ ] Implement `IAnomaly` and `AbstractAnomaly` (with `TriggerCascade()`)
+- [ ] Implement all 12 anomaly classes one by one, test each:
+  - `BirdStrikeAnomaly` (with 40% cascade to EngineFire)
+  - `EngineFireAnomaly` (with 30% cascade to WingFire, explode at 0 health)
+  - `WingFireAnomaly` (melt → asymmetric drag → game over)
+  - `EngineFailureAnomaly`
+  - `TurbulenceAnomaly` (with sensor noise cascade)
+  - `SensorFailureAnomaly` (with autopilot altitude drift)
+  - `FuelLeakAnomaly` (with 20% ignition cascade)
+  - `HydraulicFailureAnomaly`
+  - `ElectricalFailureAnomaly`
+  - `DecompressionAnomaly`
+  - `IcingAnomaly`
+  - `MicroburstAnomaly`
+  - `RunwayIncursionAnomaly`
+- [ ] Implement `IWeatherStrategy` + all 6 weather classes (with `ApplySensorEffects()`)
+- [ ] Implement `AnomalyFactory` + `WeatherFactory`
+- [ ] Implement `AnomalyEngine` (with `ForceSpawn()` for cascades)
+
+### Stage 7 – Cascade Handler (~300 LOC)
+- [ ] Implement `CascadeHandler` subscribing to all fire/explosion/failure events
+- [ ] Implement full cascade table (section 3.1) in `Handle()`
+- [ ] Wire `CascadeHandler` into `Aircraft` constructor (auto-subscribe to EventBus)
+- [ ] Test cascade chain: BirdStrike → EngineFire → WingFire → AsymmetricDrag → GameOver
+
+### Stage 8 – Command Pattern (~700 LOC)
 - [ ] Implement `IFlightCommand`
 - [ ] Implement all 8 command classes
-- [ ] Implement `CommandHistory` with undo/redo stacks
-- [ ] Add `CommandHistory.SaveToFile()` (black box export)
+- [ ] Implement `CommandHistory` (undo/redo + `SaveToFile()`)
 
-### Stage 6 – Avionics Systems – Full Implementation (~800 LOC)
-- [ ] Fully implement `EngineSystem` (RPM curves, temperature, restart logic)
-- [ ] Fully implement `FuelSystem` (burn rates, leak, emergency dump)
-- [ ] Fully implement `NavigationSystem` (waypoints, autopilot coupling)
-- [ ] Fully implement `HydraulicSystem` (gear, flaps, emergency extension)
-- [ ] Fully implement `ElectricalSystem` (buses, backup battery, APU)
-- [ ] Fully implement `AutopilotSystem` (all 5 modes)
-
-### Stage 7 – View Layer (~1,500 LOC)
+### Stage 9 – View Layer (~1,800 LOC)
 - [ ] Implement `IFlightView`
-- [ ] Implement all 6 widget classes in `Views/Components/`
-- [ ] Implement `ConsoleDashboardView` with full in-place redraw
-- [ ] Implement `StartupScreen` with aircraft + difficulty selection
+- [ ] Implement all widget classes (including `SensorsPanelWidget`, `FlightMapWidget`, `CockpitWindowWidget`)
+- [ ] Implement `ConsoleDashboardView` — **PFD reads from SensorSystem not FlightData**
+- [ ] Implement `StartupScreen` (aircraft select with stats, route select, difficulty)
 - [ ] Implement `FlightReportView`
+- [ ] Implement `BlackBoxReadoutView` (typewriter-style print, game over sequence)
 
-### Stage 8 – Controller + Input (~800 LOC)
+### Stage 10 – Controller + Infrastructure (~1,200 LOC)
 - [ ] Implement `InputHandler` with non-blocking `Poll()`
 - [ ] Implement `FlightController` with 10 Hz `RunAsync()` loop
-- [ ] Map all `PlayerAction` values to `FlightController` methods
-- [ ] Implement `AircraftFactory` (all 3 aircraft configs)
-- [ ] Implement `SimulationConfig` (Singleton with JSON load/save)
+- [ ] Implement `AircraftFactory` (all 3 aircraft)
+- [ ] Implement `SimulationConfig` (Singleton, JSON load/save with `CascadesEnabled`)
+- [ ] Implement `FlightLogger` (4 output files)
+- [ ] Implement `FlightReport` with cascade count and game over reason
 
-### Stage 9 – Infrastructure + Polish (~900 LOC)
-- [ ] Implement `FlightLogger` with file output
-- [ ] Implement `FlightReport` with `SaveAsText()` and `PrintToConsole()`
-- [ ] Add landing score calculation
-- [ ] Add color coding throughout dashboard (state-dependent colors)
+### Stage 11 – Polish + Tests (~1,000 LOC)
+- [ ] Add color coding: fire = red flashing, sensor fault = yellow, game over = full red screen
 - [ ] Add blinking `!!` for Critical alerts
-- [ ] Add demo mode (auto-pilot all phases with no input needed)
-- [ ] Write XML doc comments on all public APIs
-- [ ] Write at least 25 unit tests
-- [ ] End-to-end test: full flight with every anomaly triggered and resolved
+- [ ] Add asymmetric drag visible feedback (heading slowly drifts, player must counter)
+- [ ] Demo mode (auto-pilot all phases, scripted anomaly sequence for presentation)
+- [ ] XML doc comments on all public APIs
+- [ ] Minimum 30 unit tests covering: sensor noise, cascade chain, state transitions, damage model
+- [ ] Full end-to-end test: complete flight with every cascade triggered
 
 ---
 
-## 14. Team Task Split
+## 16. Team Task Split
 
 | Area | Stages | Person |
 |---|---|---|
-| `FlightData`, `AircraftConfig`, all enums, `IAvionicSystem` | 1 | Person 1 |
-| State pattern: all 10 state classes + `Aircraft.TransitionTo()` | 2 | Person 1 + Person 2 |
-| Observer pattern: `EventBus`, all events, all handlers | 3 | Person 2 |
-| Strategy: 10 anomaly classes + `AbstractAnomaly` + `AnomalyFactory` | 4a | Person 3 |
-| Strategy: 6 weather strategies + `AnomalyEngine` | 4b | Person 2 |
-| Command pattern: all commands + `CommandHistory` | 5 | Person 4 |
-| Avionics systems full implementation | 6 | Person 1 + Person 3 |
-| View layer: all widgets + dashboard + startup screen | 7 | Person 3 + Person 4 |
-| Controller + InputHandler + main game loop | 8 | Person 1 |
-| Factory classes + SimulationConfig + FlightLogger + FlightReport | 8–9 | Person 4 |
-| Unit tests, integration tests, XML docs, polish | 9 | All |
+| `FlightData`, `AircraftConfig`, `DamageModel`, all enums | 1 | Person 1 |
+| `SensorSystem` + all sensor classes + `ISensor` | 2 | Person 2 |
+| State pattern: all 10 states + `Aircraft.TransitionTo()` | 3 | Person 1 + Person 2 |
+| Observer: `EventBus`, all events (incl. new fire/cascade), all handlers | 4 | Person 3 |
+| Avionics systems: Engine, Fuel, Wing, Hydraulic, Electrical, Nav, Autopilot | 5 | Person 1 + Person 4 |
+| Strategy: all 13 anomaly classes + `AbstractAnomaly` + cascade logic | 6a | Person 3 |
+| Strategy: 6 weather strategies + `AnomalyEngine` (with `ForceSpawn`) | 6b | Person 2 |
+| `CascadeHandler` — full cascade table | 7 | Person 3 |
+| Command pattern: all commands + `CommandHistory` | 8 | Person 4 |
+| View: all 9 widgets + dashboard + cockpit window + map + startup + blackbox readout | 9 | Person 3 + Person 4 |
+| Controller + InputHandler + main loop | 10a | Person 1 |
+| Factories + SimulationConfig + FlightLogger + FlightReport | 10b | Person 4 |
+| Unit tests + integration + XML docs + demo mode | 11 | All |
 
 ---
 
-## 15. LOC Estimate per Module
+## 17. LOC Estimate per Module
 
 | Module | Est. LOC |
 |---|---|
-| Core/Aircraft (Aircraft + FlightData + config) | 600 |
-| Core/Aircraft/Systems (7 system classes) | 900 |
+| Core/Aircraft (Aircraft + FlightData + DamageModel + config) | 700 |
+| Core/Aircraft/Systems (8 system classes incl. WingSystem) | 1,100 |
+| Core/Sensors (ISensor + Sensor + SensorSystem + 5 typed sensors) | 600 |
 | Core/States (10 state classes) | 1,500 |
-| Core/Strategies/Anomalies (10 anomalies) | 1,200 |
+| Core/Strategies/Anomalies (13 anomalies + AbstractAnomaly) | 1,500 |
 | Core/Strategies/Weather (6 strategies) | 600 |
-| Core/Events (EventBus + events + 4 handlers) | 600 |
+| Core/Events (EventBus + 18 event classes + 5 handlers incl. CascadeHandler) | 900 |
 | Core/Commands (8 commands + CommandHistory) | 700 |
 | Controllers (FlightController + InputHandler + AnomalyEngine) | 900 |
-| Views (dashboard + widgets + screens) | 1,500 |
-| Infrastructure (config + logger + report + factories) | 800 |
-| Unit tests | 900 |
+| Views (9 widgets + dashboard + startup + report + blackbox readout) | 1,800 |
+| Infrastructure (config + logger + report + 3 factories) | 900 |
+| Unit tests | 1,000 |
 | Program.cs + startup glue | 200 |
-| **TOTAL** | **~10,400 LOC** |
+| **TOTAL** | **~12,400 LOC** |
 
 ---
 
-## 16. Grading Checklist
+## 18. Grading Checklist
 
 ### Required (must have for passing)
 
-- [ ] **State pattern** – minimum 6 states with correct transitions, no if/switch in Aircraft
-- [ ] **Strategy pattern** – minimum 6 anomalies + 3 weather strategies, all interchangeable
-- [ ] **MVC** – Model does not import View. Controller mediates all interactions
-- [ ] **Observer** – EventBus with minimum 3 handlers, events published from model
-- [ ] **Command** – CommandHistory with undo for minimum 5 distinct command types
-- [ ] **Factory** – AircraftFactory + AnomalyFactory
-- [ ] **Singleton** – SimulationConfig or EventBus with lazy init
-- [ ] **Polymorphism** – visible in `Update()`, `Trigger()`, `Handle()` calls
-- [ ] **Encapsulation** – no public fields anywhere, only properties with controlled access
-- [ ] **Inheritance** – minimum 2 clear hierarchies (e.g. `AbstractAnomaly`, `FlightEvent`)
+- [ ] **State pattern** — min 6 states, correct transitions, zero if/switch in `Aircraft`
+- [ ] **Strategy pattern** — min 6 anomalies + 3 weather strategies, all interchangeable
+- [ ] **MVC** — Model never imports View. Controller mediates all
+- [ ] **Observer** — EventBus with min 3 handlers, events from model
+- [ ] **Command** — CommandHistory with undo for min 5 command types
+- [ ] **Factory** — AircraftFactory + AnomalyFactory
+- [ ] **Singleton** — SimulationConfig or EventBus with lazy init
+- [ ] **Polymorphism** — visible in `Update()`, `Trigger()`, `Handle()`, `Read()`
+- [ ] **Encapsulation** — no public fields, only controlled properties
+- [ ] **Inheritance** — min 2 hierarchies (AbstractAnomaly, FlightEvent)
 
 ### Bonus (for grade 5.0)
 
-- [ ] Unit test suite (25+ tests using xUnit)
-- [ ] JSON config file for `SimulationConfig`
-- [ ] Black box export to file after each flight
-- [ ] Landing score calculation with formula
-- [ ] Demo / auto-pilot mode (no keyboard needed)
-- [ ] XML doc comments (`/// <summary>`) on all public APIs
-- [ ] Flight telemetry CSV export
-- [ ] All 10 anomalies implemented and testable
-- [ ] Smooth in-place console redraw (no flicker)
+- [ ] Sensor system — player sees sensor readings not raw data; faults show "---" or stuck value
+- [ ] Cascade system — at least 3 working cascade chains (bird→fire→wing→drift→gameover)
+- [ ] Wing fire + asymmetric drag — aircraft drifts, player must compensate
+- [ ] Cockpit window widget — ASCII horizon with fire, attitude
+- [ ] Flight map widget — 2D grid with plane symbol moving
+- [ ] Black box readout after game over — timestamped events, dramatic printout
+- [ ] Unit test suite (30+ tests)
+- [ ] JSON config file
+- [ ] CSV telemetry export
+- [ ] Demo mode
+- [ ] XML doc comments on all public APIs
