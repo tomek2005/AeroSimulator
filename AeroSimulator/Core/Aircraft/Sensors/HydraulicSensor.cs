@@ -1,6 +1,12 @@
 namespace AeroSimulator.Core.Aircraft.Sensors;
 
-public class HydraulicSensor
+/// <summary>
+/// Hydraulic pressure transducer.
+/// Reads <see cref="Systems.HydraulicSystem.Pressure"/>.
+/// </summary>
+public class HydraulicSensor : Sensor
 {
-    
+    public HydraulicSensor() : base("HYD-SNS") { }
+
+    protected override double Scale => 0.06;
 }
