@@ -1,7 +1,7 @@
-using AeroSim.Core.Aircraft;
-using AeroSim.Core.Aircraft.Enums;
+using AeroSimulator.Core.Aircraft;
+using AeroSimulator.Core.Aircraft.Enums;
 
-namespace AeroSim.Core.Strategies.Anomalies;
+namespace AeroSimulator.Core.Strategies.Anomalies;
 
 /// <summary>
 /// Defines the contract for all flight anomalies that can occur during simulation.
@@ -32,19 +32,19 @@ public interface IAnomaly
     /// Activates the anomaly: applies immediate effects to the aircraft and
     /// publishes relevant events to the EventBus.
     /// </summary>
-    void Trigger(Aircraft.Aircraft ctx, FlightData data);
+    void Trigger(Aircraft ctx, FlightData data);
 
     /// <summary>
     /// Called every simulation tick while <see cref="IsActive"/> is true.
     /// Applies ongoing damage, checks cascade conditions, advances timers.
     /// </summary>
-    void Update(Aircraft.Aircraft ctx, FlightData data, double deltaT);
+    void Update(Aircraft ctx, FlightData data, double deltaT);
 
     /// <summary>
     /// Attempts player-initiated resolution. Returns true on success.
     /// Sets <see cref="IsActive"/> = false on success.
     /// </summary>
-    bool Resolve(Aircraft.Aircraft ctx);
+    bool Resolve(Aircraft ctx);
 
     /// <summary>Short warning message for the dashboard alert bar.</summary>
     string GetWarningMessage();
