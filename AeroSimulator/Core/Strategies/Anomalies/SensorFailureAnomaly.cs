@@ -1,29 +1,23 @@
-using AeroSim.Core.Aircraft;
-using AeroSim.Core.Aircraft.Enums;
-using AeroSim.Core.Aircraft.Sensors;
+using AeroSimulator.Core.Aircraft;
+using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Aircraft.Sensors;
 
-namespace AeroSim.Core.Strategies.Anomalies;
+namespace AeroSimulator.Core.Strategies.Anomalies;
 
 /// <summary>
 /// Random sensor failure anomaly. Preferentially targets altitude and airspeed
 /// sensors because those are coupled to the autopilot — a faulted altitude sensor
-/// causes the autopilot to hold the wrong altitude (±50 ft/sec drift), forcing
-/// the player to disengage AP and fly manually until the sensor is repaired.
+/// causes the autopilot to drift the real altitude by ±50 ft/sec, forcing the
+/// player to disengage AP and fly manually until the sensor is repaired.
 /// </summary>
 public sealed class SensorFailureAnomaly : AbstractAnomaly
 {
-    // ─── Constants ─────────────────────────────────────────────────────────────
-
-    private const double SensorDamageAmount     = 0.70;
-    private const double AutopilotAltDriftFtSec = 50.0;   // drift rate when AP reads wrong alt
-
-    // ─── State ─────────────────────────────────────────────────────────────────
+    private const double SensorDamageAmount      = 0.70;
+    private const double AutopilotAltDriftFtSec  = 50.0;
 
     private ISensor? _targetSensor;
     private bool     _isAltitudeSensor;
     private bool     _autopilotWarningIssued;
-
-    // ─── IAnomaly ──────────────────────────────────────────────────────────────
 
     public override string   AnomalyName   => "SENSOR FAILURE";
     public override string   Description   => "Critical flight sensor has failed — instrument readings unreliable.";
@@ -37,40 +31,24 @@ public sealed class SensorFailureAnomaly : AbstractAnomaly
     public override string GetPilotAction() =>
         "Press [R] to attempt sensor recalibration. Disengage autopilot if altitude sensor is affected.";
 
-    // ─── Template method implementations ──────────────────────────────────────
-
-    protected override void OnTrigger(Aircraft.Aircraft ctx, FlightData data)
+    protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
         _autopilotWarningIssued = false;
 
-        // 60 % chance to pick altitude/airspeed (higher danger), 40 % fully random.
         _targetSensor = RollChance(0.60)
             ? PickCriticalSensor(ctx)
             : ctx.Sensors.DamageRandomSensor();
 
         _isAltitudeSensor = _targetSensor == ctx.Sensors.Altitude;
 
-        if (_targetSensor != null)
-        {
-            _targetSensor.ApplyDamage(SensorDamageAmount);
-
-            ctx.Publish(new Events.SensorFaultEvent
-            {
-                Source     = AnomalyName,
-                Level      = Severity.High,
-                Message    = $"SENSOR FAILED: {_targetSensor.SensorName} — state: {_targetSensor.State}",
-                SensorName = _targetSensor.SensorName,
-                State      = _targetSensor.State
-            });
-        }
+        _targetSensor?.ApplyDamage(SensorDamageAmount);
     }
 
-    protected override void OnUpdate(Aircraft.Aircraft ctx, FlightData data, double deltaT)
+    protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
     {
         if (_targetSensor == null) return;
 
-        // If the altitude sensor is faulted and autopilot is on, it locks onto
-        // the wrong (stuck) altitude reading and drifts the real aircraft.
+        // Faulted altitude sensor + autopilot engaged → aircraft drifts
         if (_isAltitudeSensor
             && _targetSensor.State == SensorState.Fault
             && ctx.AutopilotSystem.IsEngaged)
@@ -82,32 +60,24 @@ public sealed class SensorFailureAnomaly : AbstractAnomaly
             {
                 _autopilotWarningIssued = true;
                 PublishAlert(ctx,
-                    "AUTOPILOT reading faulty altitude sensor — DISENGAGE AP immediately",
+                    "AUTOPILOT reading faulty altitude sensor -- DISENGAGE AP immediately",
                     Severity.Critical);
             }
         }
     }
 
-    protected override bool OnResolve(Aircraft.Aircraft ctx)
+    protected override bool OnResolve(Aircraft ctx)
     {
         if (_targetSensor == null) return false;
 
         _targetSensor.Repair();
 
-        // Resync autopilot to the now-correct altitude reading.
         if (_isAltitudeSensor && ctx.AutopilotSystem.IsEngaged)
             ctx.AutopilotSystem.ResyncAltitude(ctx.FlightData.Altitude);
 
         return true;
     }
 
-    // ─── Private helpers ──────────────────────────────────────────────────────
-
-    private ISensor PickCriticalSensor(Aircraft.Aircraft ctx)
-    {
-        // Alternate between altitude and airspeed for variety.
-        return _rng.NextDouble() < 0.5
-            ? ctx.Sensors.Altitude
-            : ctx.Sensors.Airspeed;
-    }
+    private ISensor PickCriticalSensor(Aircraft ctx)
+        => _rng.NextDouble() < 0.5 ? ctx.Sensors.Altitude : ctx.Sensors.Airspeed;
 }

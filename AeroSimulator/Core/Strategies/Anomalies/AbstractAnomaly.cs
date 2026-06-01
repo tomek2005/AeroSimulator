@@ -1,8 +1,7 @@
-using AeroSim.Core.Aircraft;
-using AeroSim.Core.Aircraft.Enums;
-using AeroSim.Core.Events;
+using AeroSimulator.Core.Aircraft;
+using AeroSimulator.Core.Aircraft.Enums;
 
-namespace AeroSim.Core.Strategies.Anomalies;
+namespace AeroSimulator.Core.Strategies.Anomalies;
 
 /// <summary>
 /// Abstract base class for all anomalies. Provides shared infrastructure:
@@ -43,9 +42,9 @@ public abstract class AbstractAnomaly : IAnomaly
     public abstract bool CanBeResolved { get; }
 
     /// <inheritdoc/>
-    public void Trigger(Aircraft.Aircraft ctx, FlightData data)
+    public void Trigger(Aircraft ctx, FlightData data)
     {
-        if (_isActive) return;          // guard against double-trigger
+        if (_isActive) return;
         _isActive = true;
         _activeDuration = 0;
         OnTrigger(ctx, data);
@@ -53,7 +52,7 @@ public abstract class AbstractAnomaly : IAnomaly
     }
 
     /// <inheritdoc/>
-    public void Update(Aircraft.Aircraft ctx, FlightData data, double deltaT)
+    public void Update(Aircraft ctx, FlightData data, double deltaT)
     {
         if (!_isActive) return;
         _activeDuration += deltaT;
@@ -61,32 +60,13 @@ public abstract class AbstractAnomaly : IAnomaly
     }
 
     /// <inheritdoc/>
-    public bool Resolve(Aircraft.Aircraft ctx)
+    public bool Resolve(Aircraft ctx)
     {
         if (!CanBeResolved) return false;
         bool success = OnResolve(ctx);
         if (success)
         {
             _isActive = false;
-            ctx.Publish(new AnomalyResolvedEvent
-            {
-                Source  = AnomalyName,
-                Level   = Severity.Low,
-                Message = $"{AnomalyName} resolved successfully.",
-                Anomaly = this,
-                Success = true
-            });
-        }
-        else
-        {
-            ctx.Publish(new AnomalyResolvedEvent
-            {
-                Source  = AnomalyName,
-                Level   = Level,
-                Message = $"{AnomalyName} resolution FAILED.",
-                Anomaly = this,
-                Success = false
-            });
         }
         return success;
     }
@@ -103,18 +83,18 @@ public abstract class AbstractAnomaly : IAnomaly
     /// Applies immediate effects when the anomaly first triggers.
     /// Called once by <see cref="Trigger"/> after guards pass.
     /// </summary>
-    protected abstract void OnTrigger(Aircraft.Aircraft ctx, FlightData data);
+    protected abstract void OnTrigger(Aircraft ctx, FlightData data);
 
     /// <summary>
     /// Called every tick while active. Advance timers, apply decay, check cascades.
     /// </summary>
-    protected abstract void OnUpdate(Aircraft.Aircraft ctx, FlightData data, double deltaT);
+    protected abstract void OnUpdate(Aircraft ctx, FlightData data, double deltaT);
 
     /// <summary>
     /// Attempts to resolve the anomaly. Return true on success, false on failure.
     /// Do NOT set <see cref="_isActive"/> here — the base class handles that.
     /// </summary>
-    protected abstract bool OnResolve(Aircraft.Aircraft ctx);
+    protected abstract bool OnResolve(Aircraft ctx);
 
     // ─── Protected helpers ────────────────────────────────────────────────────
 
@@ -133,43 +113,23 @@ public abstract class AbstractAnomaly : IAnomaly
         => _rng.NextDouble() < chance;
 
     /// <summary>
-    /// Publishes an <see cref="AnomalyTriggeredEvent"/> for the given cascade
-    /// anomaly and then calls <see cref="AnomalyEngine"/> via the aircraft to
-    /// force-spawn it so it starts affecting the simulation immediately.
+    /// Chains a cascade anomaly: logs it and force-spawns it via the aircraft.
     /// </summary>
-    protected void TriggerCascade(Aircraft.Aircraft ctx, IAnomaly cascade)
+    protected void TriggerCascade(Aircraft ctx, IAnomaly cascade)
     {
-        ctx.Publish(new CascadeTriggeredEvent
-        {
-            Source  = AnomalyName,
-            Level   = Severity.Critical,
-            Message = $"CASCADE: {AnomalyName} → {cascade.AnomalyName}",
-            SourceAnomaly = AnomalyName,
-            TargetAnomaly = cascade.AnomalyName
-        });
-
-        // ForceSpawn bypasses the probability check — cascade anomalies are
-        // always injected directly by the cascade system.
         ctx.ForceSpawnAnomaly(cascade);
     }
 
     /// <summary>
-    /// Publishes a generic alert event and adds it to the alert bar.
+    /// Publishes a generic alert via the aircraft (no-op until Aircraft.Publish is implemented).
     /// </summary>
-    protected void PublishAlert(Aircraft.Aircraft ctx, string message, Severity level)
+    protected void PublishAlert(Aircraft ctx, string message, Severity level)
     {
-        ctx.Publish(new AnomalyTriggeredEvent
-        {
-            Source  = AnomalyName,
-            Level   = level,
-            Message = message,
-            Anomaly = this
-        });
+        ctx.PublishAlert(message, level);
     }
 
     /// <summary>
-    /// Deactivates this anomaly silently (used for self-resolving one-shot events
-    /// like BirdStrike after their duration expires).
+    /// Deactivates this anomaly silently (used for self-resolving one-shot events).
     /// </summary>
     protected void SelfResolve()
     {

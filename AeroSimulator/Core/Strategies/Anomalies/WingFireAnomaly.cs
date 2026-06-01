@@ -1,125 +1,103 @@
-using AeroSim.Core.Aircraft;
-using AeroSim.Core.Aircraft.Enums;
-using AeroSim.Core.Aircraft.Systems;
+using AeroSimulator.Core.Aircraft;
+using AeroSimulator.Core.Aircraft.Enums;
 
-namespace AeroSim.Core.Strategies.Anomalies;
+namespace AeroSimulator.Core.Strategies.Anomalies;
 
 /// <summary>
-/// Wing fire anomaly — the most dangerous cascade in the simulation.
-/// Wing health decays at 1 %/sec. At 50 % health asymmetric drag activates
-/// and the aircraft begins drifting toward the burning side. At 20 % health
-/// wiring burns out and the electrical system takes heavy damage. At 0 %
-/// structural failure triggers immediate GAME OVER.
+/// Engine fire anomaly. Causes continuous health decay on the affected engine
+/// (-3 %/sec) and has a 30 % chance every 10 seconds of spreading to the wing
+/// via <see cref="WingFireAnomaly"/>. If engine health reaches zero while on fire,
+/// <see cref="EngineSystem.Explode"/> is called, spiking G-force and damaging the wing.
 /// </summary>
-public sealed class WingFireAnomaly : AbstractAnomaly
+public sealed class EngineFireAnomaly : AbstractAnomaly
 {
-    // ─── Constants ─────────────────────────────────────────────────────────────
+    private const double HealthDecayPerSec     = 0.03;
+    private const double WingSpreadChance      = 0.30;
+    private const double WingSpreadIntervalSec = 10.0;
+    private const double TempSensorNoise       = 0.20;
 
-    private const double HealthDecayPerSec          = 0.01;   // 1 %/s base melt rate
-    private const double AsymmetricDragThreshold    = 0.50;
-    private const double ElectricalDamageThreshold  = 0.20;
-    private const double ElectricalDamageAmount     = 0.60;
-    private const double ExtinguishMinHealth        = 0.40;   // can't suppress below 40 %
+    private readonly int _engineIndex;
+    private double       _timeSinceSpreadRoll;
+    private bool         _wingFireTriggered;
+    private bool         _exploded;
 
-    // ─── State ─────────────────────────────────────────────────────────────────
+    /// <param name="engineIndex">0 = Engine 1, 1 = Engine 2.</param>
+    public EngineFireAnomaly(int engineIndex = 0)
+    {
+        _engineIndex = engineIndex;
+    }
 
-    private bool _asymmetricDragTriggered;
-    private bool _electricalDamageApplied;
-
-    // ─── IAnomaly ──────────────────────────────────────────────────────────────
-
-    public override string   AnomalyName   => "WING FIRE";
-    public override string   Description   => "Wing is on fire — structural failure imminent.";
+    public override string   AnomalyName   => $"ENGINE {_engineIndex + 1} FIRE";
+    public override string   Description   => $"Engine {_engineIndex + 1} is on fire — suppression required immediately.";
     public override Severity Level         => Severity.Critical;
-    public override double   Probability   => 0.0;   // cascade-only
+    public override double   Probability   => 0.0;
     public override bool     CanBeResolved => true;
 
     public override string GetWarningMessage() =>
-        "!! CRITICAL: WING FIRE DETECTED -- structural failure imminent !!";
+        $"!! ALERT: ENGINE {_engineIndex + 1} FIRE DETECTED -- activate suppression !!";
 
     public override string GetPilotAction() =>
-        "Press [R] for wing fire suppression -- ACT FAST";
+        "Press [R] to activate engine fire suppression.";
 
-    // ─── Template method implementations ──────────────────────────────────────
-
-    protected override void OnTrigger(Aircraft.Aircraft ctx, FlightData data)
+    protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
-        _asymmetricDragTriggered = false;
-        _electricalDamageApplied = false;
+        _timeSinceSpreadRoll = 0;
+        _wingFireTriggered   = false;
+        _exploded            = false;
 
-        ctx.WingSystem.StartFire();
+        ctx.GetEngine(_engineIndex).StartFire();
 
-        ctx.Publish(new Events.WingFireEvent
-        {
-            Source  = AnomalyName,
-            Level   = Severity.Critical,
-            Message = "WING FIRE started — wing health decaying",
-            Side    = ctx.DamageModel.AsymmetricDragSide
-        });
+        var tempSensor = _engineIndex == 0
+            ? ctx.Sensors.Engine1Temp
+            : ctx.Sensors.Engine2Temp;
+        tempSensor.AddNoise(TempSensorNoise);
     }
 
-    protected override void OnUpdate(Aircraft.Aircraft ctx, FlightData data, double deltaT)
+    protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
     {
-        // Advance fire state and melt the wing.
-        ctx.WingSystem.Update(deltaT, ctx.DamageModel);
-        double wingHealth = ctx.WingSystem.Health;
+        if (_exploded) return;
 
-        // ── Threshold: 50 % → asymmetric drag ────────────────────────────────
-        if (!_asymmetricDragTriggered && wingHealth <= AsymmetricDragThreshold)
+        var engine = ctx.GetEngine(_engineIndex);
+
+        ctx.ApplyDamage(
+            _engineIndex == 0 ? SystemType.Engine1 : SystemType.Engine2,
+            HealthDecayPerSec * deltaT);
+
+        _timeSinceSpreadRoll += deltaT;
+        if (!_wingFireTriggered && _timeSinceSpreadRoll >= WingSpreadIntervalSec)
         {
-            _asymmetricDragTriggered = true;
-            ctx.DamageModel.AsymmetricDragActive = true;
-
-            ctx.Publish(new Events.AsymmetricDragEvent
+            _timeSinceSpreadRoll = 0;
+            if (RollChance(WingSpreadChance))
             {
-                Source      = AnomalyName,
-                Level       = Severity.Critical,
-                Message     = $"Wing health {wingHealth * 100:F0}% -- ASYMMETRIC DRAG ACTIVE",
-                DamagedSide = ctx.DamageModel.AsymmetricDragSide,
-                DriftRate   = ctx.DamageModel.DriftDegPerSec
-            });
+                _wingFireTriggered = true;
+                TriggerCascade(ctx, new WingFireAnomaly());
+            }
         }
 
-        // ── Threshold: 20 % → electrical wiring burns ─────────────────────────
-        if (!_electricalDamageApplied && wingHealth <= ElectricalDamageThreshold)
+        if (engine.Health <= 0 && !_exploded)
         {
-            _electricalDamageApplied = true;
-            ctx.ApplyDamage(SystemType.Electrical, ElectricalDamageAmount);
+            _exploded = true;
+            engine.Explode(ctx, data);
 
-            ctx.Publish(new Events.SystemFailureEvent
-            {
-                Source  = AnomalyName,
-                Level   = Severity.Critical,
-                Message = "Wing wiring burned — ELECTRICAL SYSTEM damaged",
-                System  = SystemType.Electrical,
-                Health  = ctx.GetSystemHealth(SystemType.Electrical)
-            });
-        }
-
-        // ── Threshold: 0 % → structural failure / GAME OVER ──────────────────
-        if (wingHealth <= 0)
-        {
-            ctx.DamageModel.IsGameOver      = true;
-            ctx.DamageModel.GameOverReason  = "Wing structural failure";
-
-            ctx.Publish(new Events.GameOverEvent
-            {
-                Source  = AnomalyName,
-                Level   = Severity.Critical,
-                Message = "STRUCTURAL FAILURE — wing destroyed",
-                Reason  = ctx.DamageModel.GameOverReason
-            });
+            var rpmSensor = _engineIndex == 0
+                ? ctx.Sensors.Engine1RPM
+                : ctx.Sensors.Engine2RPM;
+            rpmSensor.Kill();
 
             SelfResolve();
         }
     }
 
-    protected override bool OnResolve(Aircraft.Aircraft ctx)
+    protected override bool OnResolve(Aircraft ctx)
     {
-        // Cannot suppress a wing that is already mostly gone.
-        if (ctx.WingSystem.Health < ExtinguishMinHealth)
-            return false;
-
-        return ctx.WingSystem.ExtinguishFire();
+        bool success = ctx.GetEngine(_engineIndex).ExtinguishFire();
+        if (success)
+        {
+            var tempSensor = _engineIndex == 0
+                ? ctx.Sensors.Engine1Temp
+                : ctx.Sensors.Engine2Temp;
+            tempSensor.ClearNoise();
+        }
+        return success;
     }
 }
