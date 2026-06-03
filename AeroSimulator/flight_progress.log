@@ -1,0 +1,7 @@
+=== LOG ROZPOCZĘCIA SYMULACJI: 06/03/2026 13:31:13 ===
+[2026-06-03 13:31:42.736] [Info] [Aircraft] State transitioned from [GROUND] to [TAKE OFF]
+[2026-06-03 13:31:48.622] [Info] [Aircraft] State transitioned from [TAKE OFF] to [CLIMB]
+[2026-06-03 13:32:27.568] [Critical] [EmergencyState] MAYDAY MAYDAY MAYDAY
+[2026-06-03 13:32:27.568] [Info] [Aircraft] State transitioned from [CLIMB] to [EMERGENCY]
+[2026-06-03 13:32:30.420] [Info] [Aircraft] State transitioned from [EMERGENCY] to [CRITICAL]
+[2026-06-03 13:32:32.749] [Info] [Aircraft] State transitioned from [CRITICAL] to [LANDING]

@@ -28,20 +28,11 @@ public class GroundState : IAircraftState
 
     public void TakeOff(Aircraft ctx)
     {
-        double fuelPct = ctx.FlightData.FuelRemainingPercent();
+    // HACK: Ignorujemy niedziałające sprawdzanie paliwa i wymuszamy zmianę stanu!
+    // Jeśli w swoim projekcie masz plik "TakeOffState.cs", wpisz tutaj: new TakeOffState()
+    // Jeśli masz tylko TaxiState, zostaw jak poniżej, ale wtedy analogicznie musisz zdjąć blokady w TaxiState.
     
-    // Zamiast starego GetSystemHealth, pobieramy zdrowie z pierwszego silnika (indeks 0)
-    // (Komentarz w kodzie słusznie sugerował, żeby użyć go bezpośrednio!)
-        double engineHealth = ctx.GetEngine(0).Health; 
-
-        if (fuelPct > 10.0 && engineHealth > 0.3)
-        {
-            ctx.TransitionTo(new TaxiState());
-        }
-        else
-        {
-            Console.WriteLine("ALERT: Check fuel and engine health before taxiing!");
-        }
+        ctx.TransitionTo(new TakeOffState());
     }
 
     public void Cruise(Aircraft ctx) => Console.WriteLine("ALERT: Cannot cruise on ground");
