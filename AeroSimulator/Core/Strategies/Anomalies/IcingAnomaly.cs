@@ -3,6 +3,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Airframe and pitot icing anomaly. Only valid below 0 °C.
 /// Ice raises the effective stall speed by 1 kt/min and adds progressive

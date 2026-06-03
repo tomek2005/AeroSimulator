@@ -3,6 +3,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Runway incursion anomaly. Only valid in LandingState below 500 ft AGL.
 /// ATC reports another aircraft or vehicle on the runway. The player has 15

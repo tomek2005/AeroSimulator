@@ -51,6 +51,7 @@ public class FlightData
     public double WindDirectionDeg { get; set; }
     public double AirPressureHPa { get; set; } = 1013.25;
     public double TemperatureC { get; set; }
+    public double StallSpeedOffset { get; set; }
 
     // ── Timing ────────────────────────────────────────────────────────────
     public TimeSpan FlightTime { get; set; } = TimeSpan.Zero;
@@ -170,6 +171,8 @@ public record FlightDataSnapshot
     public double RollAngleDeg   { get; init; }
     public double GForce         { get; init; }
     public double Throttle       { get; init; }
+
+
     public double[] EngineRPMs   { get; init; } // Zmiana na tablicę
     public double[] EngineTempsC { get; init; } // Zmiana na tablicę
     public double FuelLevelKg    { get; init; }

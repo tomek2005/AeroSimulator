@@ -2,7 +2,7 @@ using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
-
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Electrical system failure. Main bus drops immediately, taking the autopilot
 /// offline and reducing all sensor accuracy by 40 %. After 30 seconds the

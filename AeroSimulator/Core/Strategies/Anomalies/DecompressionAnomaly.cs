@@ -3,6 +3,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Rapid explosive decompression. Only valid above 25 000 ft. Forces an
 /// immediate emergency descent to 10 000 ft. Altitude and airspeed sensors

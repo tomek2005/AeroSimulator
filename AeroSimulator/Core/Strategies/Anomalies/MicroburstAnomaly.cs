@@ -3,6 +3,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Microburst wind-shear anomaly. Only valid during approach (below 2 500 ft).
 /// Creates a sudden +40 kt headwind immediately followed by a -40 kt tailwind.

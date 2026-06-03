@@ -29,11 +29,10 @@ public class GroundState : IAircraftState
     public void TakeOff(Aircraft ctx)
     {
         double fuelPct = ctx.FlightData.FuelRemainingPercent();
-        
-        // Ponieważ metoda GetSystemHealth przyjmuje SystemType.Engine, 
-        // upraszczamy to do sprawdzenia ogólnego lub bezpośrednio przez system silnika.
-        // Jeśli Aircraft pozwala na publiczny dostęp do _engine1.Health, użylibyśmy go bezpośrednio.
-        double engineHealth = ctx.GetSystemHealth(SystemType.Engine); 
+    
+    // Zamiast starego GetSystemHealth, pobieramy zdrowie z pierwszego silnika (indeks 0)
+    // (Komentarz w kodzie słusznie sugerował, żeby użyć go bezpośrednio!)
+        double engineHealth = ctx.GetEngine(0).Health; 
 
         if (fuelPct > 10.0 && engineHealth > 0.3)
         {
@@ -41,8 +40,6 @@ public class GroundState : IAircraftState
         }
         else
         {
-            // Odrzucenie prośby o start
-            // W pełnej implementacji można by było tu wysłać zdarzenie (Alert) na EventBus
             Console.WriteLine("ALERT: Check fuel and engine health before taxiing!");
         }
     }

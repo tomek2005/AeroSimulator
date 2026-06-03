@@ -3,6 +3,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Fuel leak anomaly. Starts a leak at 80–250 kg/h. The fuel sensor reads
 /// slightly higher than reality (fuel slosh confuses the sensor). Every 60

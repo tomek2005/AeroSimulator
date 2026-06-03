@@ -1,9 +1,9 @@
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
-using AeroSimulator.Core.Aircraft.Sensors;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Random sensor failure anomaly. Preferentially targets altitude and airspeed
 /// sensors because those are coupled to the autopilot — a faulted altitude sensor
