@@ -1,13 +1,11 @@
-using AeroSimulator.Core.Aircraft;
+using System;
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Aircraft;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
-/// <summary>
-/// Turbulence anomaly. Shakes the aircraft and degrades sensor accuracy while
-/// active. Medium or higher severity adds noise to ALL sensors. Critical severity
-/// randomly damages a sensor permanently. Auto-resolves after 3–8 minutes.
-/// </summary>
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 public sealed class TurbulenceAnomaly : AbstractAnomaly
 {
     private const double AltOscillationFt    = 200;
@@ -32,7 +30,7 @@ public sealed class TurbulenceAnomaly : AbstractAnomaly
         $"!! WARNING: {_turbulenceSeverity.ToString().ToUpper()} TURBULENCE -- sensor noise active !!";
 
     public override string GetPilotAction() =>
-        "Change altitude ±2000 ft with [Z]/[X] to exit turbulence layer.";
+        "Ride it out. Maintain altitude and speed manually. Wait for turbulence to subside.";
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
@@ -64,15 +62,18 @@ public sealed class TurbulenceAnomaly : AbstractAnomaly
         data.RollAngleDeg  += (_rng.NextDouble() - 0.5) * 6 * deltaT;
 
         if (_activeDuration >= _totalDuration)
-            OnResolve(ctx);
+        {
+            SelfResolve();
+        }
     }
 
     protected override bool OnResolve(Aircraft ctx)
     {
         if (_sensorNoiseApplied)
+        {
             ctx.Sensors.ClearAllNoise();
-
-        SelfResolve();
+            _sensorNoiseApplied = false;
+        }
         return true;
     }
 }

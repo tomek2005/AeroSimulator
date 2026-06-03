@@ -1,14 +1,11 @@
+using System;
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
-/// <summary>
-/// Complete engine failure (flame-out). Unlike <see cref="EngineFireAnomaly"/>,
-/// this is a clean shutdown with no fire and no explosion — but the engine
-/// cannot be restarted if health is below 20 % or altitude is too low.
-/// The RPM sensor faults immediately (reads 0 until repaired).
-/// </summary>
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 public sealed class EngineFailureAnomaly : AbstractAnomaly
 {
     private const double SingleEngineSpeedDecayPerSec = 0.5;
@@ -16,7 +13,6 @@ public sealed class EngineFailureAnomaly : AbstractAnomaly
 
     private readonly int _engineIndex;
 
-    /// <param name="engineIndex">0 = Engine 1, 1 = Engine 2.</param>
     public EngineFailureAnomaly(int engineIndex = 0)
     {
         _engineIndex = engineIndex;
@@ -38,15 +34,13 @@ public sealed class EngineFailureAnomaly : AbstractAnomaly
     {
         ctx.GetEngine(_engineIndex).Stop();
 
-        var rpmSensor = _engineIndex == 0
-            ? ctx.Sensors.Engine1RPM
-            : ctx.Sensors.Engine2RPM;
+        // Dynamiczny czujnik
+        var rpmSensor = ctx.Sensors.EngineRPM[_engineIndex];
         rpmSensor.ApplyDamage(0.7);
     }
 
     protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
     {
-        // If the other engine is also out, aircraft bleeds speed.
         var otherEngine = ctx.GetEngine(_engineIndex == 0 ? 1 : 0);
         if (otherEngine.Health <= 0.1)
             data.Speed = Math.Max(0, data.Speed - SingleEngineSpeedDecayPerSec * deltaT);

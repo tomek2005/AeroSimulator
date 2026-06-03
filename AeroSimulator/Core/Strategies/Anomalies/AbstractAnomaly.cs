@@ -3,6 +3,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// <summary>
 /// Abstract base class for all anomalies. Provides shared infrastructure:
 /// probability checks, cascade chaining, alert publishing, and duration tracking.

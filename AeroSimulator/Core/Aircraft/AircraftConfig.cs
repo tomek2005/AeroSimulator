@@ -20,6 +20,12 @@ public record AircraftConfig
     /// <value>Example: "SP-LRA".</value>
     public required string TailNumber { get; init; }
 
+    // ── Engines ──────────────────────────────────────────────────────────
+
+    /// <summary>Number of engines on the aircraft.</summary>
+    /// <value>Used to initialize engine systems, sensors, and flight data arrays.</value>
+    public int NumberOfEngines { get; init; } = 2;
+
     // ── Fuel ──────────────────────────────────────────────────────────────
 
     /// <summary>Maximum fuel capacity.</summary>

@@ -3,13 +3,9 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
-/// <summary>
-/// Engine fire anomaly. Causes continuous health decay on the affected engine
-/// (-3 %/sec) and has a 30 % chance every 10 seconds of spreading to the wing
-/// via <see cref="WingFireAnomaly"/>. If engine health reaches zero while on fire,
-/// <see cref="EngineSystem.Explode"/> is called, spiking G-force and damaging the wing.
-/// </summary>
-public sealed class EngineFireAnomaly : AbstractAnomaly
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
+public sealed class WingFireAnomaly : AbstractAnomaly
 {
     private const double HealthDecayPerSec     = 0.03;
     private const double WingSpreadChance      = 0.30;
@@ -21,8 +17,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
     private bool         _wingFireTriggered;
     private bool         _exploded;
 
-    /// <param name="engineIndex">0 = Engine 1, 1 = Engine 2.</param>
-    public EngineFireAnomaly(int engineIndex = 0)
+    public WingFireAnomaly(int engineIndex = 0)
     {
         _engineIndex = engineIndex;
     }
@@ -47,9 +42,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
 
         ctx.GetEngine(_engineIndex).StartFire();
 
-        var tempSensor = _engineIndex == 0
-            ? ctx.Sensors.Engine1Temp
-            : ctx.Sensors.Engine2Temp;
+        var tempSensor = ctx.Sensors.EngineTemp[_engineIndex];
         tempSensor.AddNoise(TempSensorNoise);
     }
 
@@ -59,9 +52,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
 
         var engine = ctx.GetEngine(_engineIndex);
 
-        ctx.ApplyDamage(
-            _engineIndex == 0 ? SystemType.Engine1 : SystemType.Engine2,
-            HealthDecayPerSec * deltaT);
+        engine.Health -= HealthDecayPerSec * deltaT;
 
         _timeSinceSpreadRoll += deltaT;
         if (!_wingFireTriggered && _timeSinceSpreadRoll >= WingSpreadIntervalSec)
@@ -79,9 +70,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
             _exploded = true;
             engine.Explode(ctx, data);
 
-            var rpmSensor = _engineIndex == 0
-                ? ctx.Sensors.Engine1RPM
-                : ctx.Sensors.Engine2RPM;
+            var rpmSensor = ctx.Sensors.EngineRPM[_engineIndex];
             rpmSensor.Kill();
 
             SelfResolve();
@@ -93,9 +82,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
         bool success = ctx.GetEngine(_engineIndex).ExtinguishFire();
         if (success)
         {
-            var tempSensor = _engineIndex == 0
-                ? ctx.Sensors.Engine1Temp
-                : ctx.Sensors.Engine2Temp;
+            var tempSensor = ctx.Sensors.EngineTemp[_engineIndex];
             tempSensor.ClearNoise();
         }
         return success;

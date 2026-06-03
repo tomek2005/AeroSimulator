@@ -1,3 +1,0 @@
-namespace AeroSimulator.Core.Aircraft;
-
-

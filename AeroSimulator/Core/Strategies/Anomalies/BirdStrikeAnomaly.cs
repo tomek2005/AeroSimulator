@@ -1,14 +1,11 @@
+using System;
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
-/// <summary>
-/// Bird strike anomaly. Can only occur below 10 000 ft.
-/// Damages a random engine by 30 %, creates a G-force spike, and has a
-/// 40 % chance of cascading into an <see cref="EngineFireAnomaly"/>.
-/// This is a one-shot event: it auto-resolves after 10 seconds of vibration.
-/// </summary>
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 public sealed class BirdStrikeAnomaly : AbstractAnomaly
 {
     private const double EngineDamage            = 0.30;
@@ -38,12 +35,12 @@ public sealed class BirdStrikeAnomaly : AbstractAnomaly
     {
         if (data.Altitude > 10_000) { SelfResolve(); return; }
 
-        _struckEngineIndex   = _rng.Next(0, ctx.EngineCount);
+        // Dynamiczne losowanie silnika na podstawie konfiguracji
+        _struckEngineIndex   = _rng.Next(0, ctx.EngineCount); 
         _sensorDamageApplied = false;
 
-        ctx.ApplyDamage(
-            _struckEngineIndex == 0 ? SystemType.Engine1 : SystemType.Engine2,
-            EngineDamage);
+        // Bezpośrednie uszkodzenie fizycznego silnika
+        ctx.GetEngine(_struckEngineIndex).Health -= EngineDamage;
 
         data.GForce += GForceSpike;
 
@@ -56,15 +53,14 @@ public sealed class BirdStrikeAnomaly : AbstractAnomaly
         double vibration = (_rng.NextDouble() - 0.5) * 2.0 * VibrationGForce;
         data.GForce = Math.Max(0.8, data.GForce + vibration);
 
-        double engineHealth = ctx.GetSystemHealth(
-            _struckEngineIndex == 0 ? SystemType.Engine1 : SystemType.Engine2);
+        // Pobranie zdrowia uszkodzonego silnika
+        double engineHealth = ctx.GetEngine(_struckEngineIndex).Health;
 
         if (!_sensorDamageApplied && engineHealth < SensorDamageThreshold)
         {
             _sensorDamageApplied = true;
-            var sensor = _struckEngineIndex == 0
-                ? ctx.Sensors.Engine1RPM
-                : ctx.Sensors.Engine2RPM;
+            // Pobranie czujnika z dynamicznej tablicy
+            var sensor = ctx.Sensors.EngineRPM[_struckEngineIndex];
             sensor.ApplyDamage(SensorDamageAmount);
         }
 
