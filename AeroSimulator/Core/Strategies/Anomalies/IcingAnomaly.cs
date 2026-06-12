@@ -4,6 +4,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 /// <summary>
 /// Airframe and pitot icing anomaly. Only valid below 0 °C.
 /// Ice raises the effective stall speed by 1 kt/min and adds progressive
@@ -46,8 +47,10 @@ public sealed class IcingAnomaly : AbstractAnomaly
     {
         if (data.TemperatureC >= TempThresholdC) return;
 
-        _stallSpeedIncrease        += StallSpeedIncreasePerSec * deltaT;
-        ctx.FlightData.StallSpeedOffset = _stallSpeedIncrease;
+        _stallSpeedIncrease += StallSpeedIncreasePerSec * deltaT;
+        
+        // Poprawka: Użycie bezpiecznej metody modyfikacji z FlightData
+        data.UpdateStallSpeedOffset(_stallSpeedIncrease);
 
         double newNoise = Math.Min(PitotNoisePerSec * deltaT, MaxPitotNoise - _currentPitotNoise);
         if (newNoise > 0)
@@ -70,7 +73,8 @@ public sealed class IcingAnomaly : AbstractAnomaly
         bool deIced = ctx.ElectricalSystem.ActivateDeIcing();
         if (deIced)
         {
-            ctx.FlightData.StallSpeedOffset = 0;
+            // Poprawka: Zerowanie parametrów przez czystą metodę domeny
+            ctx.FlightData.UpdateStallSpeedOffset(0);
             ctx.Sensors.Airspeed.ClearNoise();
             _stallSpeedIncrease = 0;
             _currentPitotNoise  = 0;

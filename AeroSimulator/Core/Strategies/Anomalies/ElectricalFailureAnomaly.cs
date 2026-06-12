@@ -35,7 +35,7 @@ public sealed class ElectricalFailureAnomaly : AbstractAnomaly
         _secondaryBusFailed = false;
         _onBackupBattery    = false;
 
-        ctx.ElectricalSystem.MainBusVoltage = 0;
+        ctx.ElectricalSystem.CutMainBus();
         ctx.AutopilotSystem.Disengage();
 
         foreach (var sensor in ctx.Sensors.GetAllSensors())
@@ -47,7 +47,7 @@ public sealed class ElectricalFailureAnomaly : AbstractAnomaly
         if (!_secondaryBusFailed && _activeDuration >= SecondaryBusFailureSec)
         {
             _secondaryBusFailed = true;
-            ctx.ElectricalSystem.SecondaryBusVoltage = 0;
+            ctx.ElectricalSystem.CutSecondaryBus();
             ctx.NavigationSystem.SetOffline();
         }
 

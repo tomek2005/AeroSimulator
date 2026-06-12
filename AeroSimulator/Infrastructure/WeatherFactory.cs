@@ -1,18 +1,22 @@
+using AeroSimulator.Core.Strategies.Weather;
+
 namespace AeroSimulator.Infrastructure;
 
 using System;
 
-public class WeatherFactory
+public static class WeatherFactory
 {
-    private static readonly Random _random = new();
-
-    public static (double WindSpeed, double WindDirection, bool Turbulence) GenerateDynamicWeather()
+    public static IWeatherStrategy CreateWeather(string type)
     {
-        // Losowanie prędkości wiatru od 0 do 35 węzłów
-        double windSpeed = _random.NextDouble() * 35.0;
-        double windDirection = _random.Next(0, 360);
-        bool turbulence = windSpeed > 20.0; // Silny wiatr generuje turbulencje
-
-        return (windSpeed, windDirection, turbulence);
+        return type.ToUpper() switch
+        {
+            "CLEAR" => new ClearSkiesStrategy(),
+            "THUNDERSTORM" or "STORM" => new ThunderstormStrategy(),
+            "FOG" => new FogStrategy(),
+            "CROSSWIND" => new CrosswindStrategy(),
+            "ICING" => new IcingConditionsStrategy(),
+            "WINDSHEAR" => new WindShearStrategy(),
+            _ => throw new ArgumentException($"[Error] Nieznany typ pogody: {type}")
+        };
     }
 }

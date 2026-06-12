@@ -1,41 +1,36 @@
 namespace AeroSimulator.Core.Aircraft.Systems;
 
-public class FuelSystem
+public class FuelSystem : IAircraftSystem
 {
-    public double TotalFuelKg { get; set; } = 10000.0;
-    public double LeakRateKgH { get; private set; }
-    public bool HasLeak => LeakRateKgH > 0;
+    public double CurrentLeakRate { get; private set; }
+    public bool IsLeaking => CurrentLeakRate > 0;
+    public bool IsOffline { get; private set; }
 
     public void StartLeak(double rateKgH)
     {
-        LeakRateKgH = rateKgH;
-    }
-
-    public bool CheckIgnitionRisk()
-    {
-        return HasLeak; 
+        CurrentLeakRate = rateKgH;
     }
 
     public bool SealLeak()
     {
-        if (HasLeak)
+        if (IsLeaking)
         {
-            LeakRateKgH = 0;
+            CurrentLeakRate = 0;
             return true;
         }
         return false;
     }
 
-    /// <summary>
-    /// Metoda do wywoływania w głównej pętli Update samolotu,
-    /// by faktycznie ubywało paliwa w czasie wycieku.
-    /// </summary>
-    public void Update(double deltaT)
+    public bool CheckIgnitionRisk()
     {
-        if (HasLeak)
-        {
-            TotalFuelKg -= (LeakRateKgH / 3600.0) * deltaT;
-            if (TotalFuelKg < 0) TotalFuelKg = 0;
-        }
+        // Ryzyko zapłonu występuje tylko przy dużym wycieku
+        return CurrentLeakRate > 150.0; 
+    }
+
+    public void SetOffline() => IsOffline = true;
+    public bool Reboot()
+    {
+        IsOffline = false;
+        return true;
     }
 }

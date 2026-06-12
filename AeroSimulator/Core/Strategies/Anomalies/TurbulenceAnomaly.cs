@@ -71,7 +71,7 @@ public sealed class TurbulenceAnomaly : AbstractAnomaly
     {
         if (_sensorNoiseApplied)
         {
-            ctx.Sensors.ClearAllNoise();
+            ctx.Sensors.ClearNoiseFromAll();
             _sensorNoiseApplied = false;
         }
         return true;

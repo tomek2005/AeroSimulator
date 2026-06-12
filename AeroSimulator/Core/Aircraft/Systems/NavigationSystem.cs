@@ -1,16 +1,14 @@
 namespace AeroSimulator.Core.Aircraft.Systems;
 
-public class NavigationSystem
+public class NavigationSystem : IAircraftSystem
 {
     public bool IsOffline { get; private set; }
 
-    public void SetOffline()
-    {
-        IsOffline = true;
-    }
+    public void SetOffline() => IsOffline = true;
 
-    public void Reboot()
+    public bool Reboot()
     {
         IsOffline = false;
+        return true;
     }
 }

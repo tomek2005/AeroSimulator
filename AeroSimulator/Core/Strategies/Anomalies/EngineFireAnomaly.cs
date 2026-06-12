@@ -1,5 +1,6 @@
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Events;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
@@ -7,7 +8,7 @@ using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
 public sealed class EngineFireAnomaly : AbstractAnomaly
 {
-    private const double HealthDecayPerSec     = 0.03;
+    private const double HealthDecayPerSec     = 0.02; 
     private const double WingSpreadChance      = 0.30;
     private const double WingSpreadIntervalSec = 10.0;
     private const double TempSensorNoise       = 0.20;
@@ -27,6 +28,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
     public override Severity Level         => Severity.Critical;
     public override double   Probability   => 0.0;
     public override bool     CanBeResolved => true;
+    public int EngineIndex => _engineIndex;
 
     public override string GetWarningMessage() =>
         $"!! ALERT: ENGINE {_engineIndex + 1} FIRE DETECTED -- activate suppression !!";
@@ -42,7 +44,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
 
         ctx.GetEngine(_engineIndex).StartFire();
 
-        var tempSensor = ctx.Sensors.EngineTemp[_engineIndex];
+        var tempSensor = ctx.Sensors.EngineTemps[_engineIndex];
         tempSensor.AddNoise(TempSensorNoise);
     }
 
@@ -51,9 +53,9 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
         if (_exploded) return;
 
         var engine = ctx.GetEngine(_engineIndex);
-
-        // Bezpośrednie odbieranie zdrowia silnikowi
-        engine.Health -= HealthDecayPerSec * deltaT;
+        
+        // Zmiana: Użycie metody intencjonalnej zamiast bezpośredniego odejmowania od pola
+        engine.ApplyDamage(HealthDecayPerSec * deltaT);
 
         _timeSinceSpreadRoll += deltaT;
         if (!_wingFireTriggered && _timeSinceSpreadRoll >= WingSpreadIntervalSec)
@@ -62,7 +64,12 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
             if (RollChance(WingSpreadChance))
             {
                 _wingFireTriggered = true;
-                TriggerCascade(ctx, new WingFireAnomaly());
+                
+                // Zmiana: Poprawny format wysyłania zdarzenia kaskady przez EventBus
+                ctx.Publish(new SystemFailureEvent(
+                    "EngineFire", 
+                    1.0, 
+                    $"CASCADE:WING_FIRE:{_engineIndex}"));
             }
         }
 
@@ -71,7 +78,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
             _exploded = true;
             engine.Explode(ctx, data);
 
-            var rpmSensor = ctx.Sensors.EngineRPM[_engineIndex];
+            var rpmSensor = ctx.Sensors.EngineRPMs[_engineIndex];
             rpmSensor.Kill();
 
             SelfResolve();
@@ -83,7 +90,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
         bool success = ctx.GetEngine(_engineIndex).ExtinguishFire();
         if (success)
         {
-            var tempSensor = ctx.Sensors.EngineTemp[_engineIndex];
+            var tempSensor = ctx.Sensors.EngineTemps[_engineIndex];
             tempSensor.ClearNoise();
         }
         return success;

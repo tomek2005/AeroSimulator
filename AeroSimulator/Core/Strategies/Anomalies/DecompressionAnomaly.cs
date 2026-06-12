@@ -4,6 +4,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 /// <summary>
 /// Rapid explosive decompression. Only valid above 25 000 ft. Forces an
 /// immediate emergency descent to 10 000 ft. Altitude and airspeed sensors
@@ -37,9 +38,7 @@ public sealed class DecompressionAnomaly : AbstractAnomaly
 
         _incapacitated = false;
 
-        data.TargetAltitude = SafeAltitudeFt;
         ctx.AutopilotSystem.SetTargetAltitude(SafeAltitudeFt);
-
         ctx.Sensors.Altitude.AddNoise(PressureNoiseBoost);
         ctx.Sensors.Airspeed.AddNoise(PressureNoiseBoost);
     }
@@ -48,7 +47,6 @@ public sealed class DecompressionAnomaly : AbstractAnomaly
     {
         if (_incapacitated) return;
 
-        // Player descended to safe altitude → resolve
         if (data.Altitude < SafeAltitudeFt)
         {
             ctx.Sensors.Altitude.ClearNoise();
@@ -57,12 +55,10 @@ public sealed class DecompressionAnomaly : AbstractAnomaly
             return;
         }
 
-        // 60-second countdown
         if (_activeDuration >= IncapacitationTimeSec)
         {
-            _incapacitated                 = true;
-            ctx.DamageModel.IsGameOver     = true;
-            ctx.DamageModel.GameOverReason = "Pilot incapacitation — failed to descend after decompression";
+            _incapacitated = true;
+            ctx.DamageModel.TriggerGameOver("Pilot incapacitation — failed to descend after decompression");
         }
     }
 

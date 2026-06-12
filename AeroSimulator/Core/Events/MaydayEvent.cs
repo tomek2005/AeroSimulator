@@ -11,4 +11,12 @@ public class MaydayEvent : FlightEvent
     // Dziedziczy Timestamp, Source, Level i Message po klasie bazowej FlightEvent.
     // Dodajemy tylko pole z powodem:
     public string Reason { get; init; } = string.Empty;
+
+    public MaydayEvent(string reason)
+    {
+        Reason = reason;
+        Source = "Aircraft";
+        Level = Severity.Critical;
+        Message = $"MAYDAY: {reason}";
+    }
 }
