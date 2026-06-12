@@ -1,6 +1,7 @@
 using System;
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Events;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
@@ -35,32 +36,30 @@ public sealed class BirdStrikeAnomaly : AbstractAnomaly
     {
         if (data.Altitude > 10_000) { SelfResolve(); return; }
 
-        // Dynamiczne losowanie silnika na podstawie konfiguracji
         _struckEngineIndex   = _rng.Next(0, ctx.EngineCount); 
         _sensorDamageApplied = false;
 
-        // Bezpośrednie uszkodzenie fizycznego silnika
-        ctx.GetEngine(_struckEngineIndex).Health -= EngineDamage;
-
-        data.GForce += GForceSpike;
+        ctx.GetEngine(_struckEngineIndex).ApplyDamage(EngineDamage);
+        ctx.FlightData.ApplyGForceSpike(GForceSpike);
 
         if (RollChance(CascadeFireChance))
-            TriggerCascade(ctx, new EngineFireAnomaly(_struckEngineIndex));
+        {
+            // Zmiana: Pełny de-coupling za pomocą EventBusa
+            ctx.Publish(new SystemFailureEvent("Engine", 1.0, $"CASCADE:ENGINE_FIRE:{_struckEngineIndex}"));
+        }
     }
 
     protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
     {
         double vibration = (_rng.NextDouble() - 0.5) * 2.0 * VibrationGForce;
-        data.GForce = Math.Max(0.8, data.GForce + vibration);
+        ctx.FlightData.ApplyVibration(vibration);
 
-        // Pobranie zdrowia uszkodzonego silnika
         double engineHealth = ctx.GetEngine(_struckEngineIndex).Health;
 
         if (!_sensorDamageApplied && engineHealth < SensorDamageThreshold)
         {
             _sensorDamageApplied = true;
-            // Pobranie czujnika z dynamicznej tablicy
-            var sensor = ctx.Sensors.EngineRPM[_struckEngineIndex];
+            var sensor = ctx.Sensors.EngineRPMs[_struckEngineIndex];
             sensor.ApplyDamage(SensorDamageAmount);
         }
 

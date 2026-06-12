@@ -1,14 +1,14 @@
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Events;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 /// <summary>
-/// Fuel leak anomaly. Starts a leak at 80–250 kg/h. The fuel sensor reads
-/// slightly higher than reality (fuel slosh confuses the sensor). Every 60
-/// seconds unresolved, a 20 % ignition risk check fires — if it triggers,
-/// the leak cascades into an <see cref="EngineFireAnomaly"/>.
+/// Fuel leak anomaly. Starts a leak at 80–250 kg/h. Every 60 seconds unresolved, 
+/// an ignition risk check fires — if it triggers, the leak cascades into an EngineFireAnomaly.
 /// </summary>
 public sealed class FuelLeakAnomaly : AbstractAnomaly
 {
@@ -53,7 +53,12 @@ public sealed class FuelLeakAnomaly : AbstractAnomaly
             if (ctx.FuelSystem.CheckIgnitionRisk() && RollChance(IgnitionChance))
             {
                 int engineIdx = _rng.Next(0, ctx.EngineCount);
-                TriggerCascade(ctx, new EngineFireAnomaly(engineIdx));
+                
+                // Zmiana: Pełne de-coupling kaskady przez EventBus
+                ctx.Publish(new SystemFailureEvent(
+                    "FuelSystem", 
+                    1.0, 
+                    $"CASCADE:ENGINE_FIRE:{engineIdx}"));
             }
         }
     }
@@ -62,7 +67,9 @@ public sealed class FuelLeakAnomaly : AbstractAnomaly
     {
         bool sealed_ = ctx.FuelSystem.SealLeak();
         if (sealed_)
+        {
             ctx.Sensors.FuelLevel.ClearNoise();
+        }
         return sealed_;
     }
 }

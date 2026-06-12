@@ -100,6 +100,48 @@ public class FlightData
         return Speed > Config.MaxSpeedKts;
     }
 
+    // ── Metody modyfikujące stan (Bodźce dla fizyki) ──────────────────────
+
+    /// <summary>
+    /// Aplikuje nagły skok przeciążenia (np. przy zderzeniu z ptakiem lub eksplozji).
+    /// </summary>
+    public void ApplyGForceSpike(double spike)
+    {
+        GForce += spike;
+    }
+
+    /// <summary>
+    /// Nakłada losowe wibracje na kadłub, dbając o to, by przeciążenie nie spadło poniżej bezpiecznego progu.
+    /// </summary>
+    public void ApplyVibration(double vibrationAmount)
+    {
+        GForce = Math.Max(0.5, GForce + vibrationAmount);
+    }
+
+    /// <summary>
+    /// Wprowadza nagłą zmianę wektora wiatru (używane przez Microburst).
+    /// </summary>
+    public void ApplyWindVector(double speedKnots, double directionDeg)
+    {
+        WindSpeedKnots = speedKnots;
+        WindDirectionDeg = directionDeg % 360.0;
+    }
+
+    /// <summary>
+    /// Resetuje parametry wiatru do zera po ustąpieniu anomalii.
+    /// </summary>
+    public void ResetWind()
+    {
+        WindSpeedKnots = 0;
+    }
+
+    /// <summary>
+    /// Aktualizuje przesunięcie prędkości przeciągnięcia (używane przez oblodzenie).
+    /// </summary>
+    public void UpdateStallSpeedOffset(double offsetAmount)
+    {
+        StallSpeedOffset = offsetAmount;
+    }
     public FlightDataSnapshot Snapshot() => new(this);
 
     /// <summary>

@@ -1,6 +1,15 @@
 namespace AeroSimulator.Core.Strategies.Weather;
 
-public class IcingConditionsStrategy
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
+public class IcingConditionsStrategy : IWeatherStrategy
 {
-    
+    public string Name => "ICING CONDITIONS";
+
+    public void Apply(Aircraft aircraft, double dt)
+    {
+        aircraft.FlightData.TemperatureC = -15.0;
+        aircraft.FlightData.WindSpeedKnots = 22.0;
+        // Sprawia, że IcingAnomaly rozwija się znacznie szybciej
+    }
 }

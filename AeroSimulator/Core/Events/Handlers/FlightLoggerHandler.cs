@@ -5,32 +5,21 @@ namespace AeroSimulator.Core.Events.Handlers;
 
 public class FlightLoggerHandler : IFlightEventHandler
 {
-    private readonly string _logFilePath = "flight_progress.log";
+    private readonly string _logFilePath;
 
     public FlightLoggerHandler()
     {
-        // Nadpisujemy plik tekstowy przy każdym nowym uruchomieniu symulatora
-        try
-        {
-            File.WriteAllText(_logFilePath, $"=== LOG ROZPOCZĘCIA SYMULACJI: {DateTime.Now} ==={Environment.NewLine}");
-        }
-        catch
-        {
-            // zabezpieczenie
-        }
+        string directory = "Logs";
+        if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
+        _logFilePath = Path.Combine(directory, $"flight_{DateTime.Now:yyyyMMdd_HHmmss}.log");
     }
 
     public void Handle(FlightEvent evt)
     {
-        string logLine = $"[{evt.Timestamp:yyyy-MM-dd HH:mm:ss.fff}] [{evt.Level}] [{evt.Source}] {evt.Message}";
-        
-        try
-        {
-            File.AppendAllText(_logFilePath, logLine + Environment.NewLine);
-        }
-        catch
-        {
-            // again
-        }
+        // Plik loguje tylko czystą telemetrię i błędy systemowe
+        if (evt is PlayerInputEvent || evt is CommandExecutedEvent) return;
+
+        string logLine = $"[{evt.Timestamp:HH:mm:ss}] [{evt.Level}] [{evt.Source}] {evt.Message}";
+        try { File.AppendAllText(_logFilePath, logLine + Environment.NewLine); } catch { }
     }
 }

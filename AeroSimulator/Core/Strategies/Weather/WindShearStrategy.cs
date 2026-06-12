@@ -1,6 +1,16 @@
 namespace AeroSimulator.Core.Strategies.Weather;
 
-public class WindShearStrategy
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
+public class WindShearStrategy : IWeatherStrategy
 {
-    
+    private readonly Random _rng = new();
+    public string Name => "WIND SHEAR";
+
+    public void Apply(Aircraft aircraft, double dt)
+    {
+        // Gwałtowne i nieprzewidywalne skoki prędkości wiatru (uskok wiatru)
+        double shearModifier = (_rng.NextDouble() - 0.5) * 20.0;
+        aircraft.FlightData.WindSpeedKnots = Math.Clamp(40.0 + shearModifier, 10.0, 70.0);
+    }
 }

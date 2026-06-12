@@ -1,9 +1,11 @@
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Aircraft.Sensors;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 /// <summary>
 /// Random sensor failure anomaly. Preferentially targets altitude and airspeed
 /// sensors because those are coupled to the autopilot — a faulted altitude sensor
@@ -12,8 +14,7 @@ using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 /// </summary>
 public sealed class SensorFailureAnomaly : AbstractAnomaly
 {
-    private const double SensorDamageAmount      = 0.70;
-    private const double AutopilotAltDriftFtSec  = 50.0;
+    private const double SensorDamageAmount = 0.70;
 
     private ISensor? _targetSensor;
     private bool     _isAltitudeSensor;
@@ -48,20 +49,15 @@ public sealed class SensorFailureAnomaly : AbstractAnomaly
     {
         if (_targetSensor == null) return;
 
-        // Faulted altitude sensor + autopilot engaged → aircraft drifts
-        if (_isAltitudeSensor
-            && _targetSensor.State == SensorState.Fault
-            && ctx.AutopilotSystem.IsEngaged)
+        // POPRAWKA ARCHITEKTURY: Anomalia TYLKO ostrzega!
+        // To Autopilot (w klasie AutopilotSystem) po przeczytaniu błędu z tego czujnika
+        // sam błędnie zmodyfikuje data.Altitude w swoim własnym cyklu Update().
+        if (_isAltitudeSensor && _targetSensor.State == SensorState.Fault && ctx.AutopilotSystem.IsEngaged)
         {
-            double direction = _rng.NextDouble() > 0.5 ? 1.0 : -1.0;
-            data.Altitude += direction * AutopilotAltDriftFtSec * deltaT;
-
             if (!_autopilotWarningIssued)
             {
                 _autopilotWarningIssued = true;
-                PublishAlert(ctx,
-                    "AUTOPILOT reading faulty altitude sensor -- DISENGAGE AP immediately",
-                    Severity.Critical);
+                PublishAlert(ctx, "AUTOPILOT receiving faulty telemetry -- DISENGAGE AP immediately", Severity.Critical);
             }
         }
     }
@@ -79,5 +75,7 @@ public sealed class SensorFailureAnomaly : AbstractAnomaly
     }
 
     private ISensor PickCriticalSensor(Aircraft ctx)
-        => _rng.NextDouble() < 0.5 ? ctx.Sensors.Altitude : ctx.Sensors.Airspeed;
+    {
+        return new Random().NextDouble() < 0.5 ? ctx.Sensors.Altitude : ctx.Sensors.Airspeed;
+    }
 }

@@ -4,6 +4,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 /// <summary>
 /// Hydraulic system failure. Pressure drops to zero, locking flaps and — if the
 /// gear was mid-transit — jamming it in a half-retracted position.
@@ -31,10 +32,13 @@ public sealed class HydraulicFailureAnomaly : AbstractAnomaly
 
         bool gearWasMidTransit = ctx.HydraulicSystem.IsGearTransiting;
 
-        ctx.HydraulicSystem.Pressure = 0;
+        // Zmiana: Użycie bezpiecznej enkapsulacji zamiast bezpośredniego ustawiania pola
+        ctx.HydraulicSystem.Depressurize();
 
         if (gearWasMidTransit)
-            ctx.HydraulicSystem.GearJammed = true;
+        {
+            ctx.HydraulicSystem.JamGear();
+        }
 
         ctx.Sensors.HydraulicPressure.ApplyDamage(0.9);
     }
@@ -46,7 +50,7 @@ public sealed class HydraulicFailureAnomaly : AbstractAnomaly
             && !_landingWarningIssued)
         {
             _landingWarningIssued = true;
-            PublishAlert(ctx,
+            ctx.PublishAlert(
                 "GEAR JAMMED -- approach with caution, brace for hard landing",
                 Severity.Critical);
         }
@@ -54,9 +58,7 @@ public sealed class HydraulicFailureAnomaly : AbstractAnomaly
 
     protected override bool OnResolve(Aircraft ctx)
     {
-        bool extended = ctx.HydraulicSystem.EmergencyGearExtension();
-        if (extended)
-            ctx.HydraulicSystem.GearJammed = false;
-        return extended;
+        // System sam czyści flagi zakleszczenia wewnątrz EmergencyGearExtension
+        return ctx.HydraulicSystem.EmergencyGearExtension();
     }
 }

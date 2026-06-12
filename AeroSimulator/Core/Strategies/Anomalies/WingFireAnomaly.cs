@@ -5,86 +5,44 @@ namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
+/// <summary>
+/// Structural wing fire cascade. Disables wing control systems and introduces
+/// aerodynamic asymmetric drag, requiring pilot correction.
+/// </summary>
 public sealed class WingFireAnomaly : AbstractAnomaly
 {
-    private const double HealthDecayPerSec     = 0.03;
-    private const double WingSpreadChance      = 0.30;
-    private const double WingSpreadIntervalSec = 10.0;
-    private const double TempSensorNoise       = 0.20;
+    private const double DragIncreasePerSec = 0.05;
+    private const double MaxAsymmetricDrag  = 0.80;
 
-    private readonly int _engineIndex;
-    private double       _timeSinceSpreadRoll;
-    private bool         _wingFireTriggered;
-    private bool         _exploded;
-
-    public WingFireAnomaly(int engineIndex = 0)
-    {
-        _engineIndex = engineIndex;
-    }
-
-    public override string   AnomalyName   => $"ENGINE {_engineIndex + 1} FIRE";
-    public override string   Description   => $"Engine {_engineIndex + 1} is on fire — suppression required immediately.";
+    public override string   AnomalyName   => "WING STRUCTURAL FIRE";
+    public override string   Description   => "Fire spread to wing structure — flight controls compromised, high drag.";
     public override Severity Level         => Severity.Critical;
-    public override double   Probability   => 0.0;
-    public override bool     CanBeResolved => true;
+    public override double   Probability   => 0.0; // Wywoływane wyłącznie jako kaskada
+    public override bool     CanBeResolved => false; // Uszkodzenie strukturalne skrzydeł jest nieodwracalne w locie
 
     public override string GetWarningMessage() =>
-        $"!! ALERT: ENGINE {_engineIndex + 1} FIRE DETECTED -- activate suppression !!";
+        "!! CRITICAL ALERT: WING STRUCTURAL FIRE -- flight controls frozen !!";
 
     public override string GetPilotAction() =>
-        "Press [R] to activate engine fire suppression.";
+        "Counteract asymmetric drift manually. Plan immediate emergency landing.";
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
-        _timeSinceSpreadRoll = 0;
-        _wingFireTriggered   = false;
-        _exploded            = false;
-
-        ctx.GetEngine(_engineIndex).StartFire();
-
-        var tempSensor = ctx.Sensors.EngineTemp[_engineIndex];
-        tempSensor.AddNoise(TempSensorNoise);
+        // Odcięcie systemów sterowania skrzydłami (klapy, spoilery zamarzają)
+        ctx.WingSystem.SetOffline();
     }
 
     protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
     {
-        if (_exploded) return;
-
-        var engine = ctx.GetEngine(_engineIndex);
-
-        engine.Health -= HealthDecayPerSec * deltaT;
-
-        _timeSinceSpreadRoll += deltaT;
-        if (!_wingFireTriggered && _timeSinceSpreadRoll >= WingSpreadIntervalSec)
+        // Pożar niszczy aerodynamikę skrzydła, generując narastający ciąg asymetryczny
+        if (data.AsymmetricDrag < MaxAsymmetricDrag)
         {
-            _timeSinceSpreadRoll = 0;
-            if (RollChance(WingSpreadChance))
-            {
-                _wingFireTriggered = true;
-                TriggerCascade(ctx, new WingFireAnomaly());
-            }
+            data.AsymmetricDrag = System.Math.Min(MaxAsymmetricDrag, data.AsymmetricDrag + DragIncreasePerSec * deltaT);
         }
 
-        if (engine.Health <= 0 && !_exploded)
-        {
-            _exploded = true;
-            engine.Explode(ctx, data);
-
-            var rpmSensor = ctx.Sensors.EngineRPM[_engineIndex];
-            rpmSensor.Kill();
-
-            SelfResolve();
-        }
+        // Symulacja uciekania samolotu w bok pod wpływem oporu uszkodzonego skrzydła
+        data.ApplyAsymmetricDrift(15.0 * data.AsymmetricDrag, deltaT);
     }
 
-    protected override bool OnResolve(Aircraft ctx)
-    {
-        bool success = ctx.GetEngine(_engineIndex).ExtinguishFire();
-        if (success)
-        {
-            var tempSensor = ctx.Sensors.EngineTemp[_engineIndex];
-            tempSensor.ClearNoise();
-        }
-        return success;
-    }
+    protected override bool OnResolve(Aircraft ctx) => false;
 }

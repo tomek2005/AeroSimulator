@@ -2,27 +2,30 @@ namespace AeroSimulator.Core.Aircraft.Systems;
 
 using System;
 
-public class WingSystem
+public class WingSystem : IAircraftSystem
 {
     public double FlapsPosition { get; private set; } 
-    
     public bool SpoilersDeployed { get; private set; }
-    
     public double IceAccumulation { get; private set; }
+    
+    // Spełnienie kontraktu IAircraftSystem
+    public bool IsOffline { get; private set; }
 
     public void SetFlaps(double position)
     {
+        if (IsOffline) return; // Klapy zablokowane w obecnej pozycji przy awarii
         FlapsPosition = Math.Clamp(position, 0.0, 1.0);
     }
 
     public void ToggleSpoilers()
     {
+        if (IsOffline) return; // Spoilery zablokowane przy awarii
         SpoilersDeployed = !SpoilersDeployed;
     }
 
     public void AddIce(double amount)
     {
-        IceAccumulation += amount;
+        IceAccumulation = Math.Min(1.0, IceAccumulation + amount);
     }
 
     public void RemoveIce(double amount)
@@ -31,4 +34,17 @@ public class WingSystem
     }
 
     public bool IsIceCritical() => IceAccumulation > 0.8;
+
+    // Integracja z interfejsem awarii
+    public void SetOffline()
+    {
+        IsOffline = true;
+    }
+
+    public bool Reboot()
+    {
+        IsOffline = false;
+        IceAccumulation = 0.0; // Restart systemu w symulatorze oczyszcza skrzydła
+        return true;
+    }
 }

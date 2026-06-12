@@ -4,11 +4,13 @@ using System;
 using AeroSimulator.Core.Aircraft; // Zapewnia widoczność Aircraft i FlightData
 
 // Menedżer zarządzający wszystkimi silnikami
-public class EngineSystem
+public class EngineSystem : IAircraftSystem
 {
     public EngineUnit[] Engines { get; }
-    
     public int EngineCount => Engines.Length;
+    
+    // Spełnienie kontraktu IAircraftSystem
+    public bool IsOffline { get; private set; }
 
     public EngineSystem(int engineCount)
     {
@@ -26,13 +28,40 @@ public class EngineSystem
         if (index < 0 || index >= EngineCount) return Engines[0];
         return Engines[index];
     }
+
+    // Jeśli cały system silników zostanie odcięty awaryjnie
+    public void SetOffline()
+    {
+        IsOffline = true;
+        foreach (var engine in Engines)
+        {
+            engine.Stop();
+        }
+    }
+
+    public bool Reboot()
+    {
+        IsOffline = false;
+        foreach (var engine in Engines)
+        {
+            engine.Restart();
+        }
+        return true;
+    }
 }
 
 // Reprezentacja fizycznego, pojedynczego silnika
 public class EngineUnit
 {
-    public double Health { get; set; } = 1.0;
+    // Zamiana na private set — zasada "Tell, Don't Ask"
+    public double Health { get; private set; } = 1.0;
     public bool IsOnFire { get; private set; }
+    public bool IsRunning { get; private set; } = true;
+
+    public void ApplyDamage(double amount)
+    {
+        Health = Math.Max(0.0, Health - amount);
+    }
 
     public void StartFire() => IsOnFire = true;
     
@@ -47,16 +76,23 @@ public class EngineUnit
     {
         Health = 0.0;
         IsOnFire = false;
-        if (data != null) data.GForce += 2.0;
+        if (data != null) 
+        {
+            // Poprawka: Wywołanie dedykowanej metody bodźca zamiast nadpisywania pola
+            data.ApplyGForceSpike(2.0);
+        }
     }
 
-    public void Stop() { Health = 0; }
+    public void Stop()
+    {
+        IsRunning = false;
+    }
 
     public bool Restart()
     {
         if (Health > 0.2) 
         {
-            Health = 1.0;
+            IsRunning = true;
             return true;
         }
         return false; 

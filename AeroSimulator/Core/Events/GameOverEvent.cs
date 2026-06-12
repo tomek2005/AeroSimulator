@@ -11,4 +11,12 @@ public class GameOverEvent : FlightEvent
     // Dziedziczy Timestamp, Source, Level i Message z klasy bazowej FlightEvent.
     // Dodajemy tylko pole dedykowane dla powodu końca gry:
     public string Reason { get; init; } = string.Empty;
+
+    public GameOverEvent(string reason)
+    {
+        Reason = reason;
+        Source = "DamageModel";
+        Level = Severity.Critical;
+        Message = $"GAME OVER: {reason}";
+    }
 }

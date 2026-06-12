@@ -1,32 +1,37 @@
+using AeroSimulator.Core.Aircraft;
+using AeroSimulator.Core.Strategies.Anomalies;
+
 namespace AeroSimulator.Infrastructure;
 
 using System;
 
-public class AnomalyFactory
+public static class AnomalyFactory
 {
-    private static readonly Random _random = new();
-
-    public static AnomalyDefinition GetRandomAnomaly()
+    /// <summary>
+    /// Fabryka tworzy czyste instancje. Jeśli anomalia wymaga konkretnego indeksu komponentu, 
+    /// jest on jawnie przekazywany z poziomu kontrolera (silnika).
+    /// </summary>
+    public static IAnomaly CreateAnomaly(string baseType, int? targetComponentIndex = null)
     {
-        string[] names = { "Bird Strike", "Wing Fire", "Hydraulic Leak", "Engine Flameout" };
-        string[] msgs = { "Zderzenie z ptakami!", "Pożar lewego skrzydła!", "Wyciek płynu hydraulicznego!", "Zgaśnięcie silnika nr 1!" };
-        
-        int index = _random.Next(names.Length);
-        
-        return new AnomalyDefinition
+        return baseType.ToUpper() switch
         {
-            AnomalyName = names[index],
-            WarningMessage = msgs[index],
-            SeverityIncreaseRate = 0.05 + (_random.NextDouble() * 0.1)
+            "BIRD_STRIKE"        => new BirdStrikeAnomaly(),
+            "WING_FIRE"          => new WingFireAnomaly(),
+            "HYDRAULIC_FAILURE"  => new HydraulicFailureAnomaly(),
+            "FUEL_LEAK"          => new FuelLeakAnomaly(),
+            "ELECTRICAL_FAILURE" => new ElectricalFailureAnomaly(),
+            "DECOMPRESSION"      => new DecompressionAnomaly(),
+            "TURBULENCE"         => new TurbulenceAnomaly(),
+            "ICING"              => new IcingAnomaly(),
+            "SENSOR_FAILURE"     => new SensorFailureAnomaly(),
+            "MICROBURST"         => new MicroburstAnomaly(),
+            "RUNWAY_INCURSION"   => new RunwayIncursionAnomaly(),
+            
+            // Anomalie silnikowe wymagające podania indeksu
+            "ENGINE_FIRE" => new EngineFireAnomaly(targetComponentIndex ?? 0),
+            "ENGINE_FAILURE" => new EngineFailureAnomaly(targetComponentIndex ?? 0),
+            
+            _ => throw new ArgumentException($"[Factory Error] Unknown anomaly type: {baseType}")
         };
     }
-}
-
-// Prosta klasa pomocnicza reprezentująca cechy anomalii, dopasowana do Twojego Aircraft.cs
-public class AnomalyDefinition
-{
-    public string AnomalyName { get; set; } = string.Empty;
-    public string WarningMessage { get; set; } = string.Empty;
-    public double SeverityIncreaseRate { get; set; }
-    public string GetWarningMessage() => WarningMessage;
 }

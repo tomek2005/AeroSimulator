@@ -4,6 +4,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 /// <summary>
 /// Runway incursion anomaly. Only valid in LandingState below 500 ft AGL.
 /// ATC reports another aircraft or vehicle on the runway. The player has 15
@@ -58,15 +59,16 @@ public sealed class RunwayIncursionAnomaly : AbstractAnomaly
 
         if (_activeDuration >= GoAroundWindowSec)
         {
-            ctx.DamageModel.IsGameOver     = true;
-            ctx.DamageModel.GameOverReason = $"Runway collision — {_incursionType}";
+            // Poprawka: Użycie bezpiecznej metody z DamageModel (enkapsulacja)
+            ctx.DamageModel.TriggerGameOver($"Runway collision — {_incursionType}");
         }
     }
 
     protected override bool OnResolve(Aircraft ctx)
     {
         _goAroundExecuted = true;
-        ctx.Abort();
+        // Zamiast wymuszonego ctx.Abort(), informujemy system, że pilot przerwał lądowanie
+        PublishAlert(ctx, "GO-AROUND INITIATED - CLIMBING TO SAFE ALTITUDE", Severity.Info);
         SelfResolve();
         return true;
     }

@@ -1,6 +1,8 @@
 namespace AeroSimulator.Core.Strategies.Weather;
 
-public class IWeatherStrategy
+using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+public interface IWeatherStrategy
 {
-    
+    string Name { get; }
+    void Apply(Aircraft aircraft, double dt);
 }

@@ -4,6 +4,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 /// <summary>
 /// Microburst wind-shear anomaly. Only valid during approach (below 2 500 ft).
 /// Creates a sudden +40 kt headwind immediately followed by a -40 kt tailwind.
@@ -44,8 +45,8 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
         _playerRecovered     = false;
         _timeWithoutRecovery = 0;
 
-        data.WindSpeedKnots   = HeadwindKts;
-        data.WindDirectionDeg = data.Heading;
+        // Bezpieczne nałożenie wektora wiatru czołowego przez metodę domeny
+        data.ApplyWindVector(HeadwindKts, data.Heading);
     }
 
     protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
@@ -55,8 +56,8 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
         if (!_inTailwindPhase && _activeDuration >= WindReversalSec)
         {
             _inTailwindPhase      = true;
-            data.WindSpeedKnots   = TailwindKts;
-            data.WindDirectionDeg = (data.Heading + 180) % 360;
+            // Bezpieczna zmiana kierunku wiatru na ogonowy (180 stopni)
+            data.ApplyWindVector(TailwindKts, (data.Heading + 180.0) % 360.0);
 
             PublishAlert(ctx,
                 "WIND REVERSAL -- tailwind now, severe energy loss -- FULL THRUST",
@@ -73,6 +74,7 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
         if (throttleOk && pitchOk)
         {
             _playerRecovered = true;
+            data.ResetWind(); // Przywrócenie spokojnego powietrza po ucieczce z mikroburstu
             SelfResolve();
             return;
         }
@@ -80,15 +82,17 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
         _timeWithoutRecovery += deltaT;
         if (_timeWithoutRecovery >= RecoveryWindowSec)
         {
-            ctx.DamageModel.IsGameOver     = true;
-            ctx.DamageModel.GameOverReason = "CFIT — microburst, failed to recover";
+            // POPRAWKA KORPORACYJNA: Zamiast bezpośredniego set; na właściwościach,
+            // wywołujemy intencjonalną metodę publiczną z interfejsu modelu zniszczeń.
+            ctx.DamageModel.TriggerGameOver("CFIT — microburst, failed to recover");
         }
     }
 
     protected override bool OnResolve(Aircraft ctx)
     {
-        // Shortcut: pressing [R] applies full throttle
+        // Wyjście awaryjne (skrót klawiszowy R): automatyczna próba ratunku pełnym ciągiem
         ctx.FlightData.Throttle = 1.0;
+        ctx.FlightData.ResetWind();
         return false;
     }
 }

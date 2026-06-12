@@ -5,36 +5,26 @@ namespace AeroSimulator.Core.Events.Handlers;
 
 public class StatisticsHandler : IFlightEventHandler
 {
-    public static int TotalEventsCount { get; private set; }
-    public static int CriticalFailuresCount { get; private set; }
-    public static int StateTransitionsCount { get; private set; }
-    public static int AnomaliesTriggeredCount { get; private set; }
+    public static int TotalAnomalies { get; private set; }
+    public static int TotalCascades { get; private set; }
+    public static int TotalFailures { get; private set; }
+    public static int StateTransitions { get; private set; }
+    public static DateTime SimulationStartTime { get; private set; } = DateTime.Now;
 
     public void Handle(FlightEvent evt)
     {
-        TotalEventsCount++;
-
-        if (evt.Level == Severity.Critical)
+        switch (evt)
         {
-            CriticalFailuresCount++;
-        }
-
-        if (evt is StateChangedEvent)
-        {
-            StateTransitionsCount++;
-        }
-
-        if (evt is AnomalyTriggeredEvent)
-        {
-            AnomaliesTriggeredCount++;
+            case AnomalyTriggeredEvent: TotalAnomalies++; break;
+            case CascadeTriggeredEvent: TotalCascades++; break;
+            case SystemFailureEvent: TotalFailures++; break;
+            case StateChangedEvent: StateTransitions++; break;
         }
     }
 
     public static void Reset()
     {
-        TotalEventsCount = 0;
-        CriticalFailuresCount = 0;
-        StateTransitionsCount = 0;
-        AnomaliesTriggeredCount = 0;
+        TotalAnomalies = 0; TotalCascades = 0; TotalFailures = 0; StateTransitions = 0;
+        SimulationStartTime = DateTime.Now;
     }
 }

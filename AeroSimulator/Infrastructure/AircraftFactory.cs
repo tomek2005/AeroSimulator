@@ -1,54 +1,39 @@
+using AeroSimulator.Core.Aircraft.Sensors;
+
 namespace AeroSimulator.Infrastructure;
 
 using AeroSimulator.Core.Aircraft;
 
-public class AircraftFactory
+/// <summary>
+/// Wzorzec Factory (Fabryka). Zgodnie z założeniami z README, buduje 
+/// skomplikowany obiekt modelu statku powietrznego na podstawie wybranej konfiguracji.
+/// </summary>
+public static class AircraftFactory
 {
-    public static Aircraft CreateBoeing737(string tailNumber)
+    public static Aircraft Create(SimulationConfig config)
     {
-        // Pełna, fizyczna specyfikacja samolotu wymagana przez klasę AircraftConfig
-        var config = new AircraftConfig
+        if (config == null) throw new ArgumentNullException(nameof(config));
+        if (config.Aircraft == null) throw new ArgumentNullException(nameof(config.Aircraft));
+
+        // POPRAWKA: Przekazujemy liczbę silników do nowego konstruktora FlightData!
+        // Dzięki temu klasa sama inicjalizuje tablice EngineRPMs i EngineTempsC
+        var initialData = new FlightData(config.Aircraft.EngineCount)
         {
-            // --- Identyfikacja ---
-            TailNumber = tailNumber,
-            DisplayName = "Boeing 737-800",
-            
-            // --- Osiągi i limity ---
-            MaxAltitudeFt = 41000.0,      // Maksymalny pułap
-            CruiseSpeedKts = 453.0,       // Prędkość przelotowa
-            MaxSpeedKts = 473.0,          // Prędkość maksymalna
-            MaxClimbRateFtMin = 3000.0,   // Maksymalna prędkość wznoszenia
-            NormalDescentFtMin = 1500.0,  // Standardowa prędkość zniżania
-            MaxCrosswindKts = 33.0,       // Maksymalny wiatr boczny
-            
-            // --- Prędkości startowe i lądowania (V-speeds) ---
-            V1SpeedKts = 135.0,           // Prędkość decyzji (powyżej nie można przerwać startu)
-            VRSpeedKts = 140.0,           // Prędkość rotacji (unoszenie nosa)
-            V2SpeedKts = 150.0,           // Bezpieczna prędkość wznoszenia z awarią silnika
-            StallSpeedKts = 150.0,        // Prędkość przeciągnięcia (bez klap)
-            StallSpeedFlaps = 110.0,      // Prędkość przeciągnięcia (pełne klapy)
-            
-            // --- Napęd ---
-            EngineCount = 2,
-            MaxThrustKN = 120.0,          // Maksymalny ciąg (w kiloniutonach na silnik)
-            
-            // --- Paliwo ---
-            MaxFuelKg = 26000.0,          // Pojemność zbiorników
-            FuelBurnKgPerH = 2500.0,      // Spalanie na godzinę
-            
-            // --- Wytrzymałość strukturalna ---
-            WingStrength = 1.0            // 100% wytrzymałości skrzydeł
+            Altitude = 0.0,
+            Speed = 0.0,
+            FuelLevelKg = config.Aircraft.MaxFuelKg,
+            FuelCapacityKg = config.Aircraft.MaxFuelKg,
+            TargetSpeed = config.Aircraft.CruiseSpeedKts,
+            TargetAltitude = Math.Min(config.Aircraft.MaxAltitudeFt, 35000.0),
+            Config = config.Aircraft
         };
-        
-        // Przekazujemy w pełni skonfigurowany obiekt
-        var aircraft = new Aircraft(tailNumber, "Boeing 737", config);
-        
-        // Konfiguracja początkowa na pasie startowym
-        aircraft.FlightData.Altitude = 0.0;
-        aircraft.FlightData.Speed = 0.0;
-        aircraft.FlightData.Heading = 270.0; 
-        aircraft.FlightData.FuelLevelKg = 15000.0; // Prawie 60% baku na start
-        
+
+        // Budowa systemu czujników
+        var sensorSystem = new SensorSystem(config.Aircraft.EngineCount);
+
+        // Powołanie do życia głównego Modelu
+        var aircraft = new Aircraft(config, initialData, sensorSystem);
+
         return aircraft;
     }
 }

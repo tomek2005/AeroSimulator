@@ -35,7 +35,7 @@ public sealed class EngineFailureAnomaly : AbstractAnomaly
         ctx.GetEngine(_engineIndex).Stop();
 
         // Dynamiczny czujnik
-        var rpmSensor = ctx.Sensors.EngineRPM[_engineIndex];
+        var rpmSensor = ctx.Sensors.EngineRPMs[_engineIndex];
         rpmSensor.ApplyDamage(0.7);
     }
 

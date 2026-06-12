@@ -7,41 +7,27 @@ using AeroSimulator.Core.Aircraft;
 public class TaxiState : IAircraftState
 {
     public string StateName => "TAXI";
-    public string StateDescription => "Kołowanie na pas startowy.";
+    public string StateDescription => "Taxiing to the active runway.";
     public ConsoleColor StateColor => ConsoleColor.DarkYellow;
     public IReadOnlyList<string> AllowedActions => new List<string> { "TakeOff", "Abort" };
 
     public void OnEnter(Aircraft ctx)
     {
-        ctx.FlightData.Speed = 15; // Wymuszamy 15 węzłów
+        ctx.FlightData.Speed = 15.0; // Węzły
     }
 
-    public void TakeOff(Aircraft ctx)
+    public void Update(Aircraft ctx, double deltaT)
     {
-        // Gracz wcisnął NextPhase (Start), gdy dotarł na pas
-        ctx.TransitionTo(new TakeOffState());
+        //czemu tu nic nie ma ?????
     }
 
-    public void Abort(Aircraft ctx)
-    {
-        // Anulowanie kołowania i powrót do bramki
-        ctx.TransitionTo(new GroundState());
-    }
+    public void TakeOff(Aircraft ctx) => ctx.TransitionTo(new TakeOffState());
+    
+    public void Abort(Aircraft ctx) => ctx.TransitionTo(new GroundState());
 
     public void Cruise(Aircraft ctx) { }
     public void Descend(Aircraft ctx) { }
     public void Land(Aircraft ctx) { }
-    public void HandleEmergency(Aircraft ctx) { }
-
-    public void Update(Aircraft ctx, double deltaT)
-    {
-        // Przesuwanie pozycji samolotu na mapie lotniska 
-        // np. ctx.FlightData.MapX += (15.0 * deltaT)
-    }
-
-    public void OnExit(Aircraft ctx)
-    {
-        // Zatrzymujemy samolot przed startem
-        ctx.FlightData.Speed = 0; 
-    }
+    public void HandleEmergency(Aircraft ctx) => ctx.TransitionTo(new EmergencyState());
+    public void OnExit(Aircraft ctx) { }
 }
