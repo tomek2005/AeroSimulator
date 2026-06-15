@@ -5,8 +5,8 @@ namespace AeroSimulator.Controllers;
 
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using AeroSimulator.Core.Aircraft;
-using AeroSimulator.Core.Events;
 using AeroSimulator.Core.Strategies.Weather;
 using AeroSimulator.Infrastructure;
 
@@ -24,6 +24,10 @@ public class FlightController
     private bool _isRunning = true;
     private bool _hasBeenAirborne;
     private bool _landedSafely;
+
+    // --- NOWE ZMIENNE DO OBSŁUGI PAUZY ---
+    private bool _isPaused = false;
+    public bool IsPaused => _isPaused;
 
     public FlightController(Aircraft aircraft, IScreen dashboard, IScreen camera, SimulationConfig config)
     {
@@ -49,6 +53,12 @@ public class FlightController
         _activeView = _activeView == _dashboardView ? _cameraView : _dashboardView;
     }
 
+    // --- NOWA METODA DO PAUZOWANIA ---
+    public void TogglePause()
+    {
+        _isPaused = !_isPaused;
+    }
+
     public async Task StartSimulationLoopAsync()
     {
         double deltaT = _config.TimeStepDeltaT; // Domyślnie 0.1s
@@ -59,60 +69,71 @@ public class FlightController
         while (_isRunning && !_aircraft.DamageModel.IsGameOver)
         {
             var stopwatch = Stopwatch.StartNew();
-            double verticalSpeedBeforeUpdate = _aircraft.FlightData.VerticalSpeed;
-
-            // 1. Obsługa wejścia gracza
+            
+            // 1. ZAWSZE Obsługa wejścia gracza (nawet na pauzie!)
             _inputHandler.ProcessInput();
 
-            // 2. Aktualizacja systemów i fizyki
-            _weatherStrategy.Apply(_aircraft, deltaT);
-            _aircraft.Update(deltaT);
-            _anomalyEngine.Tick(deltaT);
-
-            if (_aircraft.FlightData.Altitude > 50.0)
+            // 2. LOGIKA GRY ORAZ FIZYKA (Tylko gdy NIE ma pauzy)
+            if (!_isPaused)
             {
-                _hasBeenAirborne = true;
-            }
+                double verticalSpeedBeforeUpdate = _aircraft.FlightData.VerticalSpeed;
 
-            // ==========================================
-            // 3. SPRAWDZENIE KATASTROFY (Twarde lądowanie / Uderzenie w ziemię)
-            // ==========================================
-            // Jeśli samolot jest na ziemi (Altitude <= 0) i spadał zbyt szybko (VerticalSpeed < -500 FT/MIN)
-            if (_aircraft.FlightData.Altitude <= 0 && verticalSpeedBeforeUpdate < -500.0)
-            {
-                if (!_aircraft.DamageModel.IsGameOver)
+                // Aktualizacja systemów i fizyki
+                _weatherStrategy.Apply(_aircraft, deltaT);
+                _aircraft.Update(deltaT);
+                _anomalyEngine.Tick(deltaT);
+
+                if (_aircraft.FlightData.Altitude > 50.0)
                 {
-                    // Publikujemy krytyczne wydarzenie do Czarnej Skrzynki
-                    _aircraft.Publish(new SystemFailureEvent("HULL", 0.0, "IMPACT WITH TERRAIN! CATASTROPHIC HULL FAILURE!"));
-                    
-                    // Uruchamiamy API Twojego modelu - to spowoduje IsGameOver = true i przerwie pętlę!
-                    _aircraft.DamageModel.TriggerGameOver("Fatal impact with terrain.");
-                    _aircraft.Publish(new GameOverEvent("Fatal impact with terrain."));
+                    _hasBeenAirborne = true;
+                }
+
+                // ==========================================
+                // 3. SPRAWDZENIE KATASTROFY (Twarde lądowanie / Uderzenie w ziemię)
+                // ==========================================
+                if (_aircraft.FlightData.Altitude <= 0 && verticalSpeedBeforeUpdate < -500.0)
+                {
+                    if (!_aircraft.DamageModel.IsGameOver)
+                    {
+                        _aircraft.Publish(new SystemFailureEvent("HULL", 0.0, "IMPACT WITH TERRAIN! CATASTROPHIC HULL FAILURE!"));
+                        _aircraft.DamageModel.TriggerGameOver("Fatal impact with terrain.");
+                        _aircraft.Publish(new GameOverEvent("Fatal impact with terrain."));
+                    }
+                }
+
+                if (_hasBeenAirborne
+                    && _aircraft.FlightData.Altitude <= 0
+                    && _aircraft.CurrentState.StateName == "GROUND"
+                    && !_aircraft.DamageModel.IsGameOver)
+                {
+                    _landedSafely = true;
+                    _isRunning = false;
+                    _aircraft.Publish(new SystemFailureEvent("Flight", 1.0, "SAFE LANDING - flight cycle completed."));
+                }
+
+                // 4. Generowanie telemetrii do Czarnej Skrzynki (Co 1 sekundę)
+                tickCounter++;
+                if (tickCounter >= 10)
+                {
+                    var fd = _aircraft.FlightData;
+                    _aircraft.Publish(new TelemetryTickEvent($"ALT: {fd.Altitude:0}ft | SPD: {fd.Speed:0}kts | HDG: {fd.Heading:0}° | PITCH: {fd.PitchAngleDeg:F1}°"));
+                    tickCounter = 0;
                 }
             }
 
-            if (_hasBeenAirborne
-                && _aircraft.FlightData.Altitude <= 0
-                && _aircraft.CurrentState.StateName == "GROUND"
-                && !_aircraft.DamageModel.IsGameOver)
-            {
-                _landedSafely = true;
-                _isRunning = false;
-                _aircraft.Publish(new SystemFailureEvent("Flight", 1.0, "SAFE LANDING - flight cycle completed."));
-            }
-
-            // 4. Generowanie telemetrii do Czarnej Skrzynki (Co 1 sekundę)
-            tickCounter++;
-            if (tickCounter >= 10)
-            {
-                var fd = _aircraft.FlightData;
-                _aircraft.Publish(new TelemetryTickEvent($"ALT: {fd.Altitude:0}ft | SPD: {fd.Speed:0}kts | HDG: {fd.Heading:0}° | PITCH: {fd.PitchAngleDeg:F1}°"));
-                tickCounter = 0;
-            }
-
-            // 5. Renderowanie aktywnego widoku na ekran
+            // 5. ZAWSZE Renderowanie aktywnego widoku na ekran
             Console.SetCursorPosition(0, 0); 
             _activeView.RenderAll();
+
+            // Dodatkowy interfejs podczas pauzy
+            if (_isPaused)
+            {
+                Console.SetCursorPosition(38, 15); // Wyśrodkowanie na standardowym ekranie
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.BackgroundColor = ConsoleColor.DarkBlue;
+                Console.Write("  [ SIMULATION PAUSED ]  ");
+                Console.ResetColor();
+            }
 
             // 6. Stabilizacja czasu klatki (10Hz)
             stopwatch.Stop();
@@ -124,8 +145,6 @@ public class FlightController
         }
         
         // --- PO ZAKOŃCZENIU PĘTLI ---
-        // Pętla się zatrzymała! Zanim wrócimy do pliku Program.cs, dajemy graczowi 2.5 sekundy,
-        // żeby na spokojnie przeczytał, dlaczego gra się skończyła.
         if (_aircraft.DamageModel.IsGameOver)
         {
             Console.ForegroundColor = ConsoleColor.Red;

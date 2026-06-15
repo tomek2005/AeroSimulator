@@ -40,6 +40,7 @@ public class InputHandler
                 case ConsoleKey.A: Execute(new SetHeadingCommand(-5.0)); break;
                 case ConsoleKey.D: Execute(new SetHeadingCommand(5.0)); break;
                 case ConsoleKey.U: _history.UndoLast(_aircraft); break;
+                case ConsoleKey.P: _controller.TogglePause(); break;
 
                 // --- STANY ---
                 case ConsoleKey.T: Execute(new ActivateSystemCommand("TakeOff", "Advance flight phase", a => a.CurrentState.TakeOff(a))); break;
