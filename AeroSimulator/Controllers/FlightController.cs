@@ -81,10 +81,12 @@ public class FlightController
                 double verticalSpeedBeforeUpdate = _aircraft.FlightData.VerticalSpeed;
                 double speedBeforeUpdate = _aircraft.FlightData.Speed;
                 double pitchBeforeUpdate = _aircraft.FlightData.PitchAngleDeg;
+                double rollBeforeUpdate = _aircraft.FlightData.RollAngleDeg;
                 bool gearExtendedBeforeUpdate = _aircraft.HydraulicSystem.IsGearExtended;
 
                 // Aktualizacja systemów i fizyki
                 UpdateWeather(deltaT);
+                EnforceFlightEnvelope();
                 _aircraft.Update(deltaT);
                 AutoManageFlightPhase();
                 ApplyAutoLandingAssist(deltaT);
@@ -103,7 +105,8 @@ public class FlightController
                         gearExtendedBeforeUpdate,
                         speedBeforeUpdate,
                         verticalSpeedBeforeUpdate,
-                        pitchBeforeUpdate);
+                        pitchBeforeUpdate,
+                        rollBeforeUpdate);
                 }
 
                 // 4. Generowanie telemetrii do Czarnej Skrzynki (Co 1 sekundę)
@@ -151,6 +154,11 @@ public class FlightController
 
     public void Quit() => _isRunning = false;
     public bool LandedSafely => _landedSafely;
+
+    public void NotifyLandingPhaseIsAutomatic()
+    {
+        _aircraft.PublishAlert("LANDING PHASE IS AUTOMATIC - use [Y] below 650 ft for auto-land assist", Severity.Info);
+    }
 
     public void TryStartAutoLanding()
     {
@@ -202,18 +210,21 @@ public class FlightController
 
     private double RollWeatherDuration() => 35.0 + _rng.NextDouble() * 55.0;
 
-    private void EvaluateTouchdown(bool gearExtended, double speedKts, double verticalSpeedFtMin, double pitchDeg)
+    private void EvaluateTouchdown(bool gearExtended, double speedKts, double verticalSpeedFtMin, double pitchDeg, double rollDeg)
     {
         double descentRate = Math.Abs(Math.Min(verticalSpeedFtMin, 0.0));
         double absPitch = Math.Abs(pitchDeg);
+        double absRoll = Math.Abs(rollDeg);
 
         double maxSpeed = gearExtended ? 250.0 : 150.0;
         double maxDescentRate = gearExtended ? 900.0 : 350.0;
         double maxPitch = gearExtended ? 12.0 : 5.0;
+        double maxRoll = 3.0;
 
         bool stableApproach = speedKts <= maxSpeed
                               && descentRate <= maxDescentRate
                               && absPitch <= maxPitch
+                              && absRoll <= maxRoll
                               && _aircraft.CurrentState.StateName is "LANDING" or "GROUND";
 
         if (stableApproach)
@@ -225,12 +236,12 @@ public class FlightController
                 speedKts,
                 verticalSpeedFtMin,
                 pitchDeg,
-                $"SAFE TOUCHDOWN ({(gearExtended ? "GEAR DOWN" : "BELLY LANDING")}) - {speedKts:F0} kt, VS {verticalSpeedFtMin:F0} ft/min, pitch {pitchDeg:F1} deg."));
+                $"SAFE TOUCHDOWN ({(gearExtended ? "GEAR DOWN" : "BELLY LANDING")}) - {speedKts:F0} kt, VS {verticalSpeedFtMin:F0} ft/min, pitch {pitchDeg:F1} deg, roll {rollDeg:F1} deg."));
             return;
         }
 
         string gearText = gearExtended ? "gear-down" : "gear-up";
-        string reason = $"{gearText} touchdown unstable: speed {speedKts:F0}/{maxSpeed:F0} kt, descent {descentRate:F0}/{maxDescentRate:F0} ft/min, pitch {absPitch:F1}/{maxPitch:F1} deg";
+        string reason = $"{gearText} touchdown unstable: speed {speedKts:F0}/{maxSpeed:F0} kt, descent {descentRate:F0}/{maxDescentRate:F0} ft/min, pitch {absPitch:F1}/{maxPitch:F1} deg, roll {absRoll:F1}/{maxRoll:F1} deg";
         _aircraft.Publish(new SystemFailureEvent("HULL", 0.0, $"CRASH LANDING - {reason}"));
         _aircraft.DamageModel.TriggerGameOver(reason);
         _aircraft.Publish(new GameOverEvent(reason));
@@ -275,13 +286,16 @@ public class FlightController
             return;
         }
 
-        if (fd.VerticalSpeed < -250.0 || fd.PitchAngleDeg < -2.5)
+        if (fd.VerticalSpeed < -250.0 || fd.PitchAngleDeg < -3.0)
         {
             SetState(new DescentState());
             return;
         }
 
-        if (fd.Altitude > 5_000.0 && Math.Abs(fd.VerticalSpeed) < 650.0 && fd.PitchAngleDeg > -2.5)
+        double ceilingBandFt = 3_300.0;
+        bool nearCeiling = _config.Aircraft.MaxAltitudeFt - fd.Altitude <= ceilingBandFt;
+        if ((fd.Altitude > 5_000.0 && Math.Abs(fd.PitchAngleDeg) <= 3.0)
+            || nearCeiling)
         {
             SetState(new CruiseState());
             return;
@@ -325,6 +339,21 @@ public class FlightController
         }
 
         fd.Altitude = Math.Max(0.0, fd.Altitude + (fd.VerticalSpeed / 60.0) * deltaT);
+    }
+
+    private void EnforceFlightEnvelope()
+    {
+        var fd = _aircraft.FlightData;
+        double distanceToCeilingFt = _config.Aircraft.MaxAltitudeFt - fd.Altitude;
+
+        if (distanceToCeilingFt <= 3_300.0)
+        {
+            double blend = Math.Clamp(distanceToCeilingFt / 3_300.0, 0.0, 1.0);
+            double maxPositivePitch = 3.0 + 9.0 * blend;
+            fd.PitchAngleDeg = Math.Min(fd.PitchAngleDeg, maxPositivePitch);
+        }
+
+        fd.RollAngleDeg = Math.Clamp(fd.RollAngleDeg, -30.0, 30.0);
     }
 
     private void SetState(IAircraftState state)
