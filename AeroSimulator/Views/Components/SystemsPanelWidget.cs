@@ -1,5 +1,6 @@
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Infrastructure;
+using System;
 
 namespace AeroSimulator.Views.Components;
 
@@ -20,7 +21,9 @@ public class SystemsPanelWidget : IWidget
         var engSys = _aircraft.EngineSystem;
         var weather = _aircraft.WeatherSystem;
         
-        double displayFuel = sensors.GetReading(sensors.FuelLevel.SensorName);
+        // --- BEZPIECZNE ROZPAKOWANIE MONADY (PALIWO) ---
+        var fuelReading = sensors.GetReading(sensors.FuelLevel.SensorName);
+        double displayFuel = fuelReading.HasValue ? fuelReading.Value : -1.0;
 
         Console.WriteLine("\n[ SYSTEMS & POWER ]");
         
@@ -40,7 +43,10 @@ public class SystemsPanelWidget : IWidget
         Console.Write(" Engines: ");
         for(int i = 0; i < engSys.EngineCount; i++)
         {
-            double rpm = sensors.GetReading(sensors.EngineRPMs[i].SensorName);
+            // --- BEZPIECZNE ROZPAKOWANIE MONADY (OBROTY SILNIKA) ---
+            var rpmReading = sensors.GetReading(sensors.EngineRPMs[i].SensorName);
+            double rpm = rpmReading.HasValue ? rpmReading.Value : -1.0;
+
             var engine = engSys.GetEngine(i);
             bool isOnFire = engine.IsOnFire;
             

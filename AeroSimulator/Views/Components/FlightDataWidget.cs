@@ -1,5 +1,6 @@
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Infrastructure;
+using System;
 
 namespace AeroSimulator.Views.Components;
 
@@ -14,9 +15,15 @@ public class FlightDataWidget : IWidget
         var fd = _aircraft.FlightData;
         var sensors = _aircraft.Sensors;
 
-        double displayAlt = sensors.GetReading(sensors.Altitude.SensorName);
-        double displaySpd = sensors.GetReading(sensors.Airspeed.SensorName);
-        double displayFuel = sensors.GetReading(sensors.FuelLevel.SensorName);
+        // --- BEZPIECZNE ROZPAKOWANIE MONAD ---
+        var altReading = sensors.GetReading(sensors.Altitude.SensorName);
+        double displayAlt = altReading.HasValue ? altReading.Value : -1.0;
+
+        var spdReading = sensors.GetReading(sensors.Airspeed.SensorName);
+        double displaySpd = spdReading.HasValue ? spdReading.Value : -1.0;
+
+        var fuelReading = sensors.GetReading(sensors.FuelLevel.SensorName);
+        double displayFuel = fuelReading.HasValue ? fuelReading.Value : -1.0;
 
         // --- Rysowanie Paska Paliwa ---
         double capacity = fd.FuelCapacityKg > 0 ? fd.FuelCapacityKg : 10000.0; // Zabezpieczenie przed dzieleniem przez 0

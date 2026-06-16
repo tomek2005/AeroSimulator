@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Common; // <-- IMPORT NASZEJ MONADY
 
 namespace AeroSimulator.Core.Aircraft.Sensors;
 
@@ -15,11 +19,9 @@ public class SensorSystem
     public FuelSensor FuelLevel { get; } = new();
     public HydraulicSensor HydraulicPressure { get; } = new();
 
-    // POPRAWKA HERMETYZACJI: Tablice są teraz prywatne!
     private readonly EngineSensor[] _engineRPMs;
     private readonly EngineTempSensor[] _engineTemps;
 
-    // Na zewnątrz wystawiamy tylko bezpieczny podgląd, bez możliwości modyfikacji struktury
     public IReadOnlyList<EngineSensor> EngineRPMs => _engineRPMs;
     public IReadOnlyList<EngineTempSensor> EngineTemps => _engineTemps;
 
@@ -38,7 +40,8 @@ public class SensorSystem
         }
     }
 
-    private readonly Dictionary<string, double> _cache = new();
+    // 1. Słownik przechowuje teraz bezpieczne monady Option zamiast surowych liczb
+    private readonly Dictionary<string, Option<double>> _cache = new();
     private IReadOnlyList<ISensor>? _allSensors;
 
     public IReadOnlyList<ISensor> GetAllSensors()
@@ -58,6 +61,7 @@ public class SensorSystem
 
     public void Update(double dt, FlightData data)
     {
+        // Metoda Read() zwraca Option<double>, co idealnie wchodzi do nowego słownika
         _cache[Altitude.SensorName] = Altitude.Read(data.Altitude);
         _cache[Airspeed.SensorName] = Airspeed.Read(data.Speed);
         _cache[FuelLevel.SensorName] = FuelLevel.Read(data.FuelLevelKg);
@@ -77,8 +81,9 @@ public class SensorSystem
         _cache[HydraulicPressure.SensorName] = HydraulicPressure.Read(realPressure);
     }
 
-    public double GetReading(string sensorName) =>
-        _cache.TryGetValue(sensorName, out double value) ? value : -1.0;
+    // 2. Pobieranie danych ze słownika — jeśli czujnika w ogóle nie ma, też zwracamy None(), a nie -1.0
+    public Option<double> GetReading(string sensorName) =>
+        _cache.TryGetValue(sensorName, out var value) ? value : Option<double>.None();
 
     public void AddNoiseToAll(double amount)
     {

@@ -1,11 +1,12 @@
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Common; // <-- DODANY IMPORT NASZEJ MONADY
 
 namespace AeroSimulator.Core.Aircraft.Sensors;
 
 /// <summary>
 /// Common contract for every sensor on the aircraft.
 /// Sensors sit between raw <see cref="FlightData"/> values and the view:
-/// they may add noise, stick on stale values, or return -1 when dead.
+/// they may add noise, stick on stale values, or return Option.None() when dead.
 /// The view and autopilot always read from sensors, never from FlightData directly.
 /// </summary>
 public interface ISensor
@@ -24,10 +25,10 @@ public interface ISensor
 
     /// <summary>
     /// Returns a reading of <paramref name="realValue"/>, possibly distorted by
-    /// noise, stuck at a stale value (Fault), or -1 (Dead).
+    /// noise, stuck at a stale value (Fault), or None (Dead).
     /// </summary>
     /// <param name="realValue">The true physical quantity from <see cref="FlightData"/>.</param>
-    double Read(double realValue);
+    Option<double> Read(double realValue); // <-- KLUCZOWA ZMIANA Z DOUBLE NA OPTION<DOUBLE>
 
     /// <summary>
     /// Reduces sensor accuracy and may transition it to Noisy, Fault, or Dead.
@@ -45,7 +46,7 @@ public interface ISensor
     /// <summary>Removes all temporary noise boost while leaving accuracy unchanged.</summary>
     void ClearNoise();
 
-    /// <summary>Forces the sensor into the Dead state; always returns -1 thereafter.</summary>
+    /// <summary>Forces the sensor into the Dead state; always returns None thereafter.</summary>
     void Kill();
 
     /// <summary>Resets the sensor to full accuracy and OK state.</summary>
