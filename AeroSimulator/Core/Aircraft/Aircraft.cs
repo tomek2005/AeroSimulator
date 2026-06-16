@@ -71,13 +71,11 @@ public class Aircraft
         _eventBus.ClearHandlers();
         BlackBoxHandler.Clear();
         AlertBufferHandler.Clear();
-        StatisticsHandler.Reset();
         
         Subscribe(new CascadeHandler(this));
         Subscribe(new BlackBoxHandler()); 
         Subscribe(new AlertSystemHandler()); // Jeśli masz swój własny, zostawiamy
         Subscribe(new FlightLoggerHandler());
-        Subscribe(new StatisticsHandler());
         Subscribe(new AlertBufferHandler());
         
         _currentState = new GroundState(); 

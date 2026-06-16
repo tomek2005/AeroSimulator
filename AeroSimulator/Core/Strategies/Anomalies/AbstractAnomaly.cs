@@ -4,7 +4,6 @@ using AeroSimulator.Core.Events;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
-
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
 /// <summary>
@@ -17,6 +16,9 @@ public abstract class AbstractAnomaly : IAnomaly
     protected double _activeDuration;
     protected bool _isActive;
 
+    // --- FLAGA ZABEZPIECZAJĄCA PRZED SPAMEM ---
+    private bool _hasPublishedInitialWarning = false;
+
     public abstract string AnomalyName { get; }
     public abstract string Description { get; }
     public abstract Severity Level { get; }
@@ -26,16 +28,27 @@ public abstract class AbstractAnomaly : IAnomaly
 
     public void Trigger(Aircraft ctx, FlightData data)
     {
+        // Jeśli awaria już trwa, zablokuj ponowne uruchomienie
         if (_isActive) return;
+        
         _isActive = true;
         _activeDuration = 0;
+        
+        // 1. Uruchom logikę specyficzną dla danej awarii
         OnTrigger(ctx, data);
-        ctx.Publish(new AnomalyTriggeredEvent(AnomalyName, Level, GetWarningMessage()));
+        
+        // 2. WYŚLIJ ALERT POWITALNY TYLKO RAZ! 
+        if (!_hasPublishedInitialWarning)
+        {
+            ctx.Publish(new AnomalyTriggeredEvent(AnomalyName, Level, GetWarningMessage()));
+            _hasPublishedInitialWarning = true;
+        }
     }
 
     public void Update(Aircraft ctx, FlightData data, double deltaT)
     {
         if (!_isActive) return;
+        
         _activeDuration += deltaT;
         OnUpdate(ctx, data, deltaT);
     }
@@ -43,6 +56,7 @@ public abstract class AbstractAnomaly : IAnomaly
     public bool Resolve(Aircraft ctx)
     {
         if (!CanBeResolved) return false;
+        
         bool success = OnResolve(ctx);
         if (success)
         {

@@ -1,3 +1,5 @@
+using System;
+using System.Threading;
 using AeroSimulator.Core.Aircraft.Enums;
 using AeroSimulator.Core.Events.Handlers;
 using AeroSimulator.Infrastructure;
@@ -68,12 +70,17 @@ public class BlackboxReadoutView : IScreen
         Console.WriteLine("================================================================================");
         Console.ResetColor();
         
+        // --- ZASTOSOWANIE PARADYGMATU FUNKCYJNEGO ---
+        // Wywołanie Czystej Funkcji, która przetwarza logi (LINQ) i zwraca niezmienny rekord
+        var stats = StatisticsHandler.GenerateReport(BlackBoxHandler.EventLog);
+        
         // Zwieńczenie punktu o statystykach po locie
         Console.WriteLine("\n [ FLIGHT SUMMARY ]");
-        Console.WriteLine($" Total Anomalies:     {StatisticsHandler.TotalAnomalies}");
-        Console.WriteLine($" Cascades Triggered:  {StatisticsHandler.TotalCascades}");
-        Console.WriteLine($" System Failures:     {StatisticsHandler.TotalFailures}");
-        Console.WriteLine($" Flight Phases (St):  {StatisticsHandler.StateTransitions}");
+        Console.WriteLine($" Total Anomalies:     {stats.TotalAnomalies}");
+        Console.WriteLine($" Cascades Triggered:  {stats.TotalCascades}");
+        Console.WriteLine($" System Failures:     {stats.TotalFailures}");
+        Console.WriteLine($" Flight Phases (St):  {stats.StateTransitions}");
+        Console.WriteLine($" Critical Alerts:     {stats.CriticalAlerts}");
         
         Console.WriteLine("\n Press any key to return to Main Menu...");
     }
