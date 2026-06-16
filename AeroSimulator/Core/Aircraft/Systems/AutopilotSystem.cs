@@ -1,5 +1,6 @@
 namespace AeroSimulator.Core.Aircraft.Systems;
 
+using System;
 using AeroSimulator.Core.Aircraft.Sensors;
 
 public class AutopilotSystem : IAircraftSystem
@@ -56,20 +57,44 @@ public class AutopilotSystem : IAircraftSystem
         double sensedAltitude = sensors.GetReading(sensors.Altitude.SensorName);
         double sensedSpeed = sensors.GetReading(sensors.Airspeed.SensorName);
 
-        if (sensedAltitude >= 0)
-        {
-            double altitudeError = TargetAltitude - sensedAltitude;
-            data.PitchAngleDeg = Math.Clamp(data.PitchAngleDeg + altitudeError * 0.0006 * deltaT, -8.0, 8.0);
-        }
+        // Aktualizacja stanu następuje poprzez przypisanie wyniku z Czystych Funkcji.
+        // Sama metoda Update staje się tylko "łącznikiem" między modelem a kalkulatorem.
 
-        double headingError = NormalizeHeadingError(TargetHeading - data.Heading);
-        data.RollAngleDeg = Math.Clamp(data.RollAngleDeg + headingError * 0.05 * deltaT, -25.0, 25.0);
+        data.PitchAngleDeg = AutopilotCalculator.CalculateNewPitch(
+            data.PitchAngleDeg, TargetAltitude, sensedAltitude, deltaT);
 
-        if (TargetSpeed > 0 && sensedSpeed >= 0)
-        {
-            double speedError = TargetSpeed - sensedSpeed;
-            data.Throttle = Math.Clamp(data.Throttle + speedError * 0.002 * deltaT, 0.0, 1.0);
-        }
+        data.RollAngleDeg = AutopilotCalculator.CalculateNewRoll(
+            data.RollAngleDeg, TargetHeading, data.Heading, deltaT);
+
+        data.Throttle = AutopilotCalculator.CalculateNewThrottle(
+            data.Throttle, TargetSpeed, sensedSpeed, deltaT);
+    }
+}
+
+/// Moduł funkcyjny (Functional Programming) zawierający wyłącznie Czyste Funkcje (Pure Functions).
+/// Brak stanu wewnętrznego, brak ukrytych mutacji, całkowicie deterministyczne wyniki.
+public static class AutopilotCalculator
+{
+    public static double CalculateNewPitch(double currentPitch, double targetAltitude, double sensedAltitude, double deltaT)
+    {
+        if (sensedAltitude < 0) return currentPitch;
+        
+        double altitudeError = targetAltitude - sensedAltitude;
+        return Math.Clamp(currentPitch + altitudeError * 0.0006 * deltaT, -8.0, 8.0);
+    }
+
+    public static double CalculateNewRoll(double currentRoll, double targetHeading, double currentHeading, double deltaT)
+    {
+        double headingError = NormalizeHeadingError(targetHeading - currentHeading);
+        return Math.Clamp(currentRoll + headingError * 0.05 * deltaT, -25.0, 25.0);
+    }
+
+    public static double CalculateNewThrottle(double currentThrottle, double targetSpeed, double sensedSpeed, double deltaT)
+    {
+        if (targetSpeed <= 0 || sensedSpeed < 0) return currentThrottle;
+
+        double speedError = targetSpeed - sensedSpeed;
+        return Math.Clamp(currentThrottle + speedError * 0.002 * deltaT, 0.0, 1.0);
     }
 
     private static double NormalizeHeadingError(double error)
