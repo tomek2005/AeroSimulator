@@ -16,7 +16,7 @@ public class EmergencyState : IAircraftState
     public void OnEnter(Aircraft ctx)
     {
         // Prawdziwe wysłanie sygnału Mayday przez szynę zdarzeń! (Czarna skrzynka to zapisze)
-        ctx.Publish(new MaydayEvent("Emergency state declared."));
+        ctx.Publish(new MaydayEvent(EmergencyType.General, "Crew", "MAYDAY MAYDAY MAYDAY — Emergency state declared."));
         ctx.PublishAlert("MAYDAY, MAYDAY, MAYDAY! Emergency state declared.", Severity.Critical);
     }
 

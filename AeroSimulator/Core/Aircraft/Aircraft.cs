@@ -249,15 +249,11 @@ public class Aircraft
         _currentState = newState;
         _currentState.OnEnter(this);
 
-        Publish(new StateChangedEvent
-        {
-            Timestamp = DateTime.Now,
-            Source = "Aircraft",
-            Level = Severity.Info,
-            Message = $"State transitioned from [{oldStateName}] to [{_currentState.StateName}]",
-            OldState = oldStateName,
-            NewState = _currentState.StateName
-        });
+        Publish(new StateChangedEvent(
+            oldStateName,
+            _currentState.StateName,
+            $"State transitioned from [{oldStateName}] to [{_currentState.StateName}]"
+        ));
     }
 
     // ==========================================

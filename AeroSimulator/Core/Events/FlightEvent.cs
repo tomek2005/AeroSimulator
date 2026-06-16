@@ -3,7 +3,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Events;
 
-public abstract class FlightEvent
+public abstract record FlightEvent
 {
     public DateTime Timestamp { get; set; } = DateTime.Now;
     public string Source { get; set; } = string.Empty;

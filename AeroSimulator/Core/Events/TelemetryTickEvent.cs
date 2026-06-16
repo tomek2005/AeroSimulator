@@ -2,12 +2,12 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Events;
 
-public class TelemetryTickEvent : FlightEvent
+// Zamiana 'class' na 'record'
+public record TelemetryTickEvent : FlightEvent
 {
+    // Przekazanie danych bezpośrednio do bazowego, niemutowalnego konstruktora
     public TelemetryTickEvent(string message)
+        : base(message, "Telemetry", Severity.Low)
     {
-        Source = "Telemetry";
-        Level = Severity.Low;
-        Message = message;
     }
 }
