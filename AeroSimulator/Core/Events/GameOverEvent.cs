@@ -1,22 +1,16 @@
-namespace AeroSimulator.Core.Events;
-
-using System;
 using AeroSimulator.Core.Aircraft.Enums;
 
-/// <summary>
-/// Specjalne zdarzenie katastrofalne, wywoływane w momencie bezpowrotnego zniszczenia maszyny.
-/// </summary>
-public class GameOverEvent : FlightEvent
+namespace AeroSimulator.Core.Events;
+
+public record GameOverEvent : FlightEvent
 {
-    // Dziedziczy Timestamp, Source, Level i Message z klasy bazowej FlightEvent.
-    // Dodajemy tylko pole dedykowane dla powodu końca gry:
     public string Reason { get; init; } = string.Empty;
 
+    // Zmieniamy konstruktor, aby przyjmował TYLKO 'reason' (jeden argument)
+    // i przekazywał go wyżej jako treść wiadomości.
     public GameOverEvent(string reason)
+        : base($"GAME OVER: {reason}", "DamageModel", Severity.Critical)
     {
         Reason = reason;
-        Source = "DamageModel";
-        Level = Severity.Critical;
-        Message = $"GAME OVER: {reason}";
     }
 }

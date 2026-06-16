@@ -1,10 +1,12 @@
+using System;
 using AeroSimulator.Core.Aircraft.Enums;
+using AeroSimulator.Core.Common; // <-- DODANY IMPORT NASZEJ MONADY
 
 namespace AeroSimulator.Core.Aircraft.Sensors;
 
 /// <summary>
 /// Base sensor implementation with Gaussian-style noise, fault sticking,
-/// and dead-return behaviour.
+/// and dead-return behaviour using the Option monad.
 /// Subclasses override <see cref="Scale"/> to apply unit-specific noise scaling.
 /// </summary>
 public class Sensor : ISensor
@@ -44,16 +46,17 @@ public class Sensor : ISensor
     }
 
     /// <inheritdoc/>
-    public double Read(double realValue)
+    public Option<double> Read(double realValue) // <-- ZMIANA TYPU ZWRACANEGO NA OPTION
     {
         switch (State)
         {
             case SensorState.Dead:
-                return -1.0;    // "-1" renders as "---" on the dashboard
+                // Zamiast "-1.0" zwracamy funkcyjny brak wartości:
+                return Option<double>.None();
 
             case SensorState.Fault:
-                // Stuck on whatever was last read — may be stale or completely wrong
-                return _lastReading;
+                // Zwracamy "zamrożoną" (nieaktualną) wartość opakowaną w strukturyzowane Some:
+                return Option<double>.Some(_lastReading);
 
             default:
                 // Noisy or OK — add proportional Gaussian noise
@@ -61,7 +64,9 @@ public class Sensor : ISensor
                 double noiseMagnitude  = realValue * Scale * totalNoiseLevel;
                 double noiseSample     = (_rng.NextDouble() - 0.5) * 2.0 * noiseMagnitude;
                 _lastReading = realValue + noiseSample;
-                return _lastReading;
+                
+                // Zwracamy przeliczoną wartość opakowaną w Some:
+                return Option<double>.Some(_lastReading);
         }
     }
 
