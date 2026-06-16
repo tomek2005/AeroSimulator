@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace AeroSimulator.Core.Events.Handlers;
@@ -27,9 +29,7 @@ public class BlackBoxHandler : IFlightEventHandler
         lock (_lock) _recordedEvents.Clear();
     }
 
-    // ==========================================
-    // NOWOŚĆ: Zrzut pamięci do pliku .log na dysk
-    // ==========================================
+    // Zrzut pamięci do pliku .log na dysk (Podejście Deklaratywne / LINQ)
     public static void SaveToFile()
     {
         lock (_lock)
@@ -42,25 +42,29 @@ public class BlackBoxHandler : IFlightEventHandler
                     Directory.CreateDirectory(directory);
                 }
 
-                // Tworzy plik np. Logs/blackbox_20231024_153000.log
                 string filePath = Path.Combine(directory, $"blackbox_{DateTime.Now:yyyyMMdd_HHmmss}.log");
                 
-                var sb = new StringBuilder();
-                sb.AppendLine("================================================================================");
-                sb.AppendLine($"                  BLACKBOX FLIGHT DATA RECORDER DUMP");
-                sb.AppendLine($"                  TIMESTAMP: {DateTime.Now}");
-                sb.AppendLine("================================================================================");
+                string header = 
+                    "================================================================================\n" +
+                   $"                  BLACKBOX FLIGHT DATA RECORDER DUMP\n" +
+                   $"                  TIMESTAMP: {DateTime.Now}\n" +
+                    "================================================================================\n";
+
+                // 2. FUNKCYJNY POTOK DANYCH (LINQ Pipeline)
+                // Zamiast pętli foreach, mapujemy (Select) każdy obiekt na string
+                var logLines = _recordedEvents
+                    .Select(evt => $"[{evt.Timestamp:HH:mm:ss.fff}] [{evt.Level.ToString().ToUpper()}] [{evt.Source.ToUpper()}] {evt.Message}");
                 
-                foreach (var evt in _recordedEvents)
-                {
-                    sb.AppendLine($"[{evt.Timestamp:HH:mm:ss.fff}] [{evt.Level.ToString().ToUpper()}] [{evt.Source.ToUpper()}] {evt.Message}");
-                }
-                
-                File.WriteAllText(filePath, sb.ToString());
+                // 3. Agregacja (sklejanie) i zapis
+                string fullContent = header + string.Join(Environment.NewLine, logLines);
+                File.WriteAllText(filePath, fullContent);
             }
-            catch
+            catch (Exception ex)
             {
-                // Zabezpieczenie przed wywaleniem gry, gdyby np. folder był zablokowany przez system
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"\n [!] SYSTEM WARNING: Failed to save blackbox log to disk.");
+                Console.WriteLine($"     Reason: {ex.Message}");
+                Console.ResetColor();
             }
         }
     }
