@@ -29,7 +29,7 @@ public class BlackBoxHandler : IFlightEventHandler
         lock (_lock) _recordedEvents.Clear();
     }
 
-    // Zrzut pamięci do pliku .log na dysk (Podejście Deklaratywne / LINQ)
+    // Zrzut pamięci do pliku .log na dysk (Podejście zoptymalizowane pod .NET)
     public static void SaveToFile()
     {
         lock (_lock)
@@ -44,22 +44,20 @@ public class BlackBoxHandler : IFlightEventHandler
 
                 string filePath = Path.Combine(directory, $"blackbox_{DateTime.Now:yyyyMMdd_HHmmss}.log");
                 
-                string header = 
-                    "================================================================================\n" +
-                   $"                  BLACKBOX FLIGHT DATA RECORDER DUMP\n" +
-                   $"                  TIMESTAMP: {DateTime.Now}\n" +
-                    "================================================================================\n";
+                var sb = new StringBuilder();
+                sb.AppendLine("================================================================================");
+                sb.AppendLine($"                  BLACKBOX FLIGHT DATA RECORDER DUMP");
+                sb.AppendLine($"                  TIMESTAMP: {DateTime.Now}");
+                sb.AppendLine("================================================================================");
 
-                // 2. FUNKCYJNY POTOK DANYCH (LINQ Pipeline)
-                // Zamiast pętli foreach, mapujemy (Select) każdy obiekt na string
-                var logLines = _recordedEvents
-                    .Select(evt => $"[{evt.Timestamp:HH:mm:ss.fff}] [{evt.Level.ToString().ToUpper()}] [{evt.Source.ToUpper()}] {evt.Message}");
-                
-                // 3. Agregacja (sklejanie) i zapis
-                string fullContent = header + string.Join(Environment.NewLine, logLines);
-                File.WriteAllText(filePath, fullContent);
+                foreach (var evt in _recordedEvents)
+                {
+                    sb.AppendLine($"[{evt.Timestamp:HH:mm:ss.fff}] [{evt.Level.ToString().ToUpper()}] [{evt.Source.ToUpper()}] {evt.Message}");
+                }
+
+                File.WriteAllText(filePath, sb.ToString());
             }
-            catch (Exception ex)
+            catch (Exception ex) 
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"\n [!] SYSTEM WARNING: Failed to save blackbox log to disk.");

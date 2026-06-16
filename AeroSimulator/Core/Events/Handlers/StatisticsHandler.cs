@@ -5,7 +5,6 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Events.Handlers;
 
-// 1. Zastosowanie FP: Zwracamy Niezmienny Rekord (Immutable Record)
 public record FlightStatistics(
     int TotalAnomalies,
     int TotalCascades,
@@ -16,19 +15,18 @@ public record FlightStatistics(
 
 public static class StatisticsHandler
 {
-    // 2. Zastosowanie FP: Czysta Funkcja i Potoki Deklaratywne (LINQ Pipelines)
-    // Funkcja nie mutuje żadnego zewnętrznego stanu, tylko przyjmuje logi i zwraca nowy wynik.
     public static FlightStatistics GenerateReport(IEnumerable<FlightEvent> eventLog)
     {
-        return new FlightStatistics(
-            // Wykorzystanie funkcji wyższego rzędu: OfType (filtrowanie po typie) i Count (agregacja)
-            TotalAnomalies: eventLog.OfType<AnomalyTriggeredEvent>().Count(),
-            TotalCascades: eventLog.OfType<CascadeTriggeredEvent>().Count(),
-            TotalFailures: eventLog.OfType<SystemFailureEvent>().Count(),
-            StateTransitions: eventLog.OfType<StateChangedEvent>().Count(),
-            
-            // Dodatkowy potok: zliczanie wszystkich komunikatów z poziomem "Critical"
-            CriticalAlerts: eventLog.Count(e => e.Level == Severity.Critical)
+        // Zastosowanie FP: Potok LINQ z użyciem funkcji Aggregate (tzw. Fold).
+        return eventLog.Aggregate(
+            seed: new FlightStatistics(0, 0, 0, 0, 0),
+            func: (acc, evt) => new FlightStatistics(
+                TotalAnomalies: acc.TotalAnomalies + (evt is AnomalyTriggeredEvent ? 1 : 0),
+                TotalCascades: acc.TotalCascades + (evt is CascadeTriggeredEvent ? 1 : 0),
+                TotalFailures: acc.TotalFailures + (evt is SystemFailureEvent ? 1 : 0),
+                StateTransitions: acc.StateTransitions + (evt is StateChangedEvent ? 1 : 0),
+                CriticalAlerts: acc.CriticalAlerts + (evt.Level == Severity.Critical ? 1 : 0)
+            )
         );
     }
 }
