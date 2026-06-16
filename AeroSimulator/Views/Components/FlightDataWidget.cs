@@ -16,14 +16,9 @@ public class FlightDataWidget : IWidget
         var sensors = _aircraft.Sensors;
 
         // --- BEZPIECZNE ROZPAKOWANIE MONAD ---
-        var altReading = sensors.GetReading(sensors.Altitude.SensorName);
-        double displayAlt = altReading.HasValue ? altReading.Value : -1.0;
-
-        var spdReading = sensors.GetReading(sensors.Airspeed.SensorName);
-        double displaySpd = spdReading.HasValue ? spdReading.Value : -1.0;
-
-        var fuelReading = sensors.GetReading(sensors.FuelLevel.SensorName);
-        double displayFuel = fuelReading.HasValue ? fuelReading.Value : -1.0;
+        double displayAlt = sensors.GetReading(sensors.Altitude.SensorName).ValueOr(-1.0);
+        double displaySpd = sensors.GetReading(sensors.Airspeed.SensorName).ValueOr(-1.0);
+        double displayFuel = sensors.GetReading(sensors.FuelLevel.SensorName).ValueOr(-1.0);
 
         // --- Rysowanie Paska Paliwa ---
         double capacity = fd.FuelCapacityKg > 0 ? fd.FuelCapacityKg : 10000.0; // Zabezpieczenie przed dzieleniem przez 0

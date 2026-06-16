@@ -22,9 +22,7 @@ public class SystemsPanelWidget : IWidget
         var weather = _aircraft.WeatherSystem;
         
         // --- BEZPIECZNE ROZPAKOWANIE MONADY (PALIWO) ---
-        var fuelReading = sensors.GetReading(sensors.FuelLevel.SensorName);
-        double displayFuel = fuelReading.HasValue ? fuelReading.Value : -1.0;
-
+        double displayFuel = sensors.GetReading(sensors.FuelLevel.SensorName).ValueOr(-1.0);    
         Console.WriteLine("\n[ SYSTEMS & POWER ]");
         
         // --- PALIWO I ELEKTRYKA ---

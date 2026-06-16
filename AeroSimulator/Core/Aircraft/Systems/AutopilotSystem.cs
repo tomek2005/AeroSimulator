@@ -54,23 +54,18 @@ public class AutopilotSystem : IAircraftSystem
     {
         if (!IsEngaged || IsOffline) return;
 
-        // --- 1. BEZPIECZNE ODCZYTYWANIE MONAD (OPTION) ---
-        var altReading = sensors.GetReading(sensors.Altitude.SensorName);
-        var spdReading = sensors.GetReading(sensors.Airspeed.SensorName);
+        // Funkcyjne aplikowanie zmiany Pitch (tylko jeśli czujnik wysokości działa)
+        sensors.GetReading(sensors.Altitude.SensorName)
+            .IfPresent(alt => data.PitchAngleDeg = CalculateNewPitch(TargetAltitude, alt, data.PitchAngleDeg, deltaT));
 
-        // --- 2. DELEGOWANIE DO CZYSTYCH FUNKCJI ---
-        // Wykonujemy zmianę tylko wtedy, gdy czujnik żyje (HasValue == true)
-        if (altReading.HasValue)
-        {
-            data.PitchAngleDeg = CalculateNewPitch(TargetAltitude, altReading.Value, data.PitchAngleDeg, deltaT);
-        }
-
-        // Heading nie korzysta z czujników zewnętrznych, tylko z bezpiecznego IMU (FlightData)
+        // Zmiana Roll nie zależy od zewnętrznych czujników, wykonujemy zawsze
         data.RollAngleDeg = CalculateNewRoll(TargetHeading, data.Heading, data.RollAngleDeg, deltaT);
 
-        if (TargetSpeed > 0 && spdReading.HasValue)
+        // Funkcyjne aplikowanie przepustnicy (tylko gdy mamy zadaną prędkość i sprawny czujnik)
+        if (TargetSpeed > 0)
         {
-            data.Throttle = CalculateNewThrottle(TargetSpeed, spdReading.Value, data.Throttle, deltaT);
+            sensors.GetReading(sensors.Airspeed.SensorName)
+                .IfPresent(spd => data.Throttle = CalculateNewThrottle(TargetSpeed, spd, data.Throttle, deltaT));
         }
     }
 
