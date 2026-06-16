@@ -54,44 +54,45 @@ public class AutopilotSystem : IAircraftSystem
     {
         if (!IsEngaged || IsOffline) return;
 
-        // Funkcyjne aplikowanie zmiany Pitch (tylko jeśli czujnik wysokości działa)
+        // Funkcyjne aplikowanie zmiany Pitch z użyciem wydzielonego Kalkulatora
         sensors.GetReading(sensors.Altitude.SensorName)
-            .IfPresent(alt => data.PitchAngleDeg = CalculateNewPitch(TargetAltitude, alt, data.PitchAngleDeg, deltaT));
+            .IfPresent(alt => data.PitchAngleDeg = AutopilotCalculator.CalculateNewPitch(data.PitchAngleDeg, TargetAltitude, alt, deltaT));
 
         // Zmiana Roll nie zależy od zewnętrznych czujników, wykonujemy zawsze
-        data.RollAngleDeg = CalculateNewRoll(TargetHeading, data.Heading, data.RollAngleDeg, deltaT);
+        data.RollAngleDeg = AutopilotCalculator.CalculateNewRoll(data.RollAngleDeg, TargetHeading, data.Heading, deltaT);
 
-        // Funkcyjne aplikowanie przepustnicy (tylko gdy mamy zadaną prędkość i sprawny czujnik)
+        // Funkcyjne aplikowanie przepustnicy z użyciem wydzielonego Kalkulatora
         if (TargetSpeed > 0)
         {
             sensors.GetReading(sensors.Airspeed.SensorName)
-                .IfPresent(spd => data.Throttle = CalculateNewThrottle(TargetSpeed, spd, data.Throttle, deltaT));
+                .IfPresent(spd => data.Throttle = AutopilotCalculator.CalculateNewThrottle(data.Throttle, TargetSpeed, spd, deltaT));
         }
     }
+}
 
-    // =========================================================================
-    // PARADYGMAT FUNKCYJNY: CZYSTE FUNKCJE (PURE FUNCTIONS)
-    // - Metody statyczne
-    // - Zależą TYLKO od argumentów wejściowych
-    // - Nie modyfikują stanu obiektu (brak skutków ubocznych)
-    // - Idealne do wyizolowanego testowania jednostkowego (Unit Tests)
-    // =========================================================================
-
-    public static double CalculateNewPitch(double targetAlt, double currentAlt, double currentPitch, double deltaT)
+/// <summary>
+/// Moduł funkcyjny (Functional Programming) zawierający wyłącznie Czyste Funkcje (Pure Functions).
+/// Brak stanu wewnętrznego, brak ukrytych mutacji, całkowicie deterministyczne wyniki.
+/// </summary>
+public static class AutopilotCalculator
+{
+    // Usunięto if (sensedAltitude < 0) — monada z AutopilotSystem dba o to, by nie przekazać tu błędnych danych.
+    public static double CalculateNewPitch(double currentPitch, double targetAltitude, double sensedAltitude, double deltaT)
     {
-        double altitudeError = targetAlt - currentAlt;
+        double altitudeError = targetAltitude - sensedAltitude;
         return Math.Clamp(currentPitch + altitudeError * 0.0006 * deltaT, -8.0, 8.0);
     }
 
-    public static double CalculateNewRoll(double targetHeading, double currentHeading, double currentRoll, double deltaT)
+    public static double CalculateNewRoll(double currentRoll, double targetHeading, double currentHeading, double deltaT)
     {
         double headingError = NormalizeHeadingError(targetHeading - currentHeading);
         return Math.Clamp(currentRoll + headingError * 0.05 * deltaT, -25.0, 25.0);
     }
 
-    public static double CalculateNewThrottle(double targetSpeed, double currentSpeed, double currentThrottle, double deltaT)
+    // Usunięto if (sensedSpeed < 0) z tego samego powodu.
+    public static double CalculateNewThrottle(double currentThrottle, double targetSpeed, double sensedSpeed, double deltaT)
     {
-        double speedError = targetSpeed - currentSpeed;
+        double speedError = targetSpeed - sensedSpeed;
         return Math.Clamp(currentThrottle + speedError * 0.002 * deltaT, 0.0, 1.0);
     }
 

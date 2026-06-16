@@ -86,25 +86,41 @@ public class AnomalyEngine
             if (anomaly.Resolve(_aircraft))
             {
                 ActiveAnomalies.Remove(anomaly);
+                _aircraft.PublishAlert(
+                    $"REPAIR COMPLETE: {anomaly.AnomalyName} - {anomaly.Description}",
+                    AeroSimulator.Core.Aircraft.Enums.Severity.Info);
                 return true;
             }
+
+            _aircraft.PublishAlert(
+                $"REPAIR FAILED: {anomaly.AnomalyName} - {anomaly.GetPilotAction()}",
+                AeroSimulator.Core.Aircraft.Enums.Severity.Medium);
+            return false;
         }
 
+        _aircraft.PublishAlert(
+            "NO ACTIVE REPAIRABLE ANOMALY - standby checks completed",
+            AeroSimulator.Core.Aircraft.Enums.Severity.Info);
         return false;
     }
 
-    private bool IsAnomalyAlreadyActive(string typeCode)
+private bool IsAnomalyAlreadyActive(string typeCode)
+{
+    // Mapowanie typów dla bezpieczeństwa Enterprise
+    return typeCode switch
     {
-        // Mapowanie typów dla bezpieczeństwa Enterprise
-        return typeCode switch
-        {
-            "BIRD_STRIKE" => ActiveAnomalies.Any(a => a is BirdStrikeAnomaly),
-            "HYDRAULIC_FAILURE" => ActiveAnomalies.Any(a => a is HydraulicFailureAnomaly),
-            "FUEL_LEAK" => ActiveAnomalies.Any(a => a is FuelLeakAnomaly),
-            "MICROBURST" => ActiveAnomalies.Any(a => a is MicroburstAnomaly),
-            "RUNWAY_INCURSION" => ActiveAnomalies.Any(a => a is RunwayIncursionAnomaly),
-            "SENSOR_FAILURE" => ActiveAnomalies.Any(a => a is SensorFailureAnomaly),
-            _ => false
-        };
-    }
+        "BIRD_STRIKE" => ActiveAnomalies.Any(a => a is BirdStrikeAnomaly),
+        "HYDRAULIC_FAILURE" => ActiveAnomalies.Any(a => a is HydraulicFailureAnomaly),
+        "FUEL_LEAK" => ActiveAnomalies.Any(a => a is FuelLeakAnomaly),
+        "MICROBURST" => ActiveAnomalies.Any(a => a is MicroburstAnomaly),
+        "RUNWAY_INCURSION" => ActiveAnomalies.Any(a => a is RunwayIncursionAnomaly),
+        "SENSOR_FAILURE" => ActiveAnomalies.Any(a => a is SensorFailureAnomaly),
+        "ELECTRICAL_FAILURE" => ActiveAnomalies.Any(a => a is ElectricalFailureAnomaly),
+        "DECOMPRESSION" => ActiveAnomalies.Any(a => a is DecompressionAnomaly),
+        "TURBULENCE" => ActiveAnomalies.Any(a => a is TurbulenceAnomaly),
+        "ICING" => ActiveAnomalies.Any(a => a is IcingAnomaly),
+        
+        _ => false
+    };
+}
 }

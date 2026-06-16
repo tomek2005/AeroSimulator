@@ -16,6 +16,8 @@ public static class DataPresets
 
     public static readonly IReadOnlyList<RouteConfig> RoutePresets = new List<RouteConfig>
     {
+        new("Szkoleniowa (Traffic Pattern)", "EPWA (Start i lądowanie na tym samym pasie)", 15, "3 minuty"),
+
         new("Krótka (Short)", "EPWA (Warszawa) ➔ EPKK (Kraków)", 250, "30 min"),
         new("Średnia (Medium)", "EPWA (Warszawa) ➔ EDDB (Berlin)", 520, "1 godz 00 min"),
         new("Długa (Long)", "EPWA (Warszawa) ➔ EGLL (Londyn)", 1450, "2 godz 15 min")
