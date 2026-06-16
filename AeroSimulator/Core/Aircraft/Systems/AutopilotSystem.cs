@@ -54,31 +54,31 @@ public class AutopilotSystem : IAircraftSystem
     {
         if (!IsEngaged || IsOffline) return;
 
-        double sensedAltitude = sensors.GetReading(sensors.Altitude.SensorName);
-        double sensedSpeed = sensors.GetReading(sensors.Airspeed.SensorName);
+        // Funkcyjne aplikowanie zmiany Pitch z użyciem wydzielonego Kalkulatora
+        sensors.GetReading(sensors.Altitude.SensorName)
+            .IfPresent(alt => data.PitchAngleDeg = AutopilotCalculator.CalculateNewPitch(data.PitchAngleDeg, TargetAltitude, alt, deltaT));
 
-        // Aktualizacja stanu następuje poprzez przypisanie wyniku z Czystych Funkcji.
-        // Sama metoda Update staje się tylko "łącznikiem" między modelem a kalkulatorem.
+        // Zmiana Roll nie zależy od zewnętrznych czujników, wykonujemy zawsze
+        data.RollAngleDeg = AutopilotCalculator.CalculateNewRoll(data.RollAngleDeg, TargetHeading, data.Heading, deltaT);
 
-        data.PitchAngleDeg = AutopilotCalculator.CalculateNewPitch(
-            data.PitchAngleDeg, TargetAltitude, sensedAltitude, deltaT);
-
-        data.RollAngleDeg = AutopilotCalculator.CalculateNewRoll(
-            data.RollAngleDeg, TargetHeading, data.Heading, deltaT);
-
-        data.Throttle = AutopilotCalculator.CalculateNewThrottle(
-            data.Throttle, TargetSpeed, sensedSpeed, deltaT);
+        // Funkcyjne aplikowanie przepustnicy z użyciem wydzielonego Kalkulatora
+        if (TargetSpeed > 0)
+        {
+            sensors.GetReading(sensors.Airspeed.SensorName)
+                .IfPresent(spd => data.Throttle = AutopilotCalculator.CalculateNewThrottle(data.Throttle, TargetSpeed, spd, deltaT));
+        }
     }
 }
 
+/// <summary>
 /// Moduł funkcyjny (Functional Programming) zawierający wyłącznie Czyste Funkcje (Pure Functions).
 /// Brak stanu wewnętrznego, brak ukrytych mutacji, całkowicie deterministyczne wyniki.
+/// </summary>
 public static class AutopilotCalculator
 {
+    // Usunięto if (sensedAltitude < 0) — monada z AutopilotSystem dba o to, by nie przekazać tu błędnych danych.
     public static double CalculateNewPitch(double currentPitch, double targetAltitude, double sensedAltitude, double deltaT)
     {
-        if (sensedAltitude < 0) return currentPitch;
-        
         double altitudeError = targetAltitude - sensedAltitude;
         return Math.Clamp(currentPitch + altitudeError * 0.0006 * deltaT, -8.0, 8.0);
     }
@@ -89,10 +89,9 @@ public static class AutopilotCalculator
         return Math.Clamp(currentRoll + headingError * 0.05 * deltaT, -25.0, 25.0);
     }
 
+    // Usunięto if (sensedSpeed < 0) z tego samego powodu.
     public static double CalculateNewThrottle(double currentThrottle, double targetSpeed, double sensedSpeed, double deltaT)
     {
-        if (targetSpeed <= 0 || sensedSpeed < 0) return currentThrottle;
-
         double speedError = targetSpeed - sensedSpeed;
         return Math.Clamp(currentThrottle + speedError * 0.002 * deltaT, 0.0, 1.0);
     }

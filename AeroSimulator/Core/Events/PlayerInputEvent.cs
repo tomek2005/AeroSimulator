@@ -2,17 +2,17 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Events;
 
-public class PlayerInputEvent : FlightEvent
+// Zamiana 'class' na 'record'
+public record PlayerInputEvent : FlightEvent
 {
-    public string Key { get; init; } = string.Empty;
-    public string Action { get; init; } = string.Empty;
+    public PlayerAction Action { get; init; }
+    public string KeyInfo { get; init; } = string.Empty;
 
-    public PlayerInputEvent(string key, string action, string message)
+    // Przekazanie wspólnych danych do bazowego, niemutowalnego konstruktora
+    public PlayerInputEvent(PlayerAction action, string keyInfo, string message)
+        : base(message, "InputHandler", Severity.Info)
     {
-        Key = key;
         Action = action;
-        Source = "PlayerInput";
-        Level = Severity.Info;
-        Message = message;
+        KeyInfo = keyInfo;
     }
 }
