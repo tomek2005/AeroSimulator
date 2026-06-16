@@ -47,7 +47,7 @@ public class CruiseState : IAircraftState
 
     public void TakeOff(Aircraft ctx) { }
     public void Cruise(Aircraft ctx) { }
-    public void Land(Aircraft ctx) { }
+    public void Land(Aircraft ctx) => Descend(ctx);
     public void Abort(Aircraft ctx) { }
     public void OnExit(Aircraft ctx) { }
 }

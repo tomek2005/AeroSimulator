@@ -26,6 +26,8 @@ public class AlertWidget : IWidget
                 // Kolorowanie linii w zależności od stopnia powagi sytuacji
                 if (log.Contains("[ALERT]") || log.Contains("CRITICAL") || log.Contains("FIRE"))
                     Console.ForegroundColor = ConsoleColor.Red;
+                else if (log.Contains("[SUCCESS]") || log.Contains("REPAIR COMPLETE"))
+                    Console.ForegroundColor = ConsoleColor.Green;
                 else if (log.Contains("[WARN]"))
                     Console.ForegroundColor = ConsoleColor.Yellow;
                 else

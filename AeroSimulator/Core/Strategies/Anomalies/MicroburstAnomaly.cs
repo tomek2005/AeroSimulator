@@ -35,7 +35,7 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
         "!! CRITICAL: MICROBURST -- FULL THRUST, PITCH UP NOW !!";
 
     public override string GetPilotAction() =>
-        "Press [W] for full throttle and maintain pitch up. 5 seconds to recover.";
+        "Press [UpArrow] for full throttle and [S] to pitch up. 5 seconds to recover.";
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {

@@ -29,12 +29,16 @@ public class SystemsPanelWidget : IWidget
         Console.WriteLine($" Fuel: {displayFuel,6:F0} KG ({fuelStatus}) | Elec Main: {elec.MainBusVoltage,4:F1}V | Sec: {elec.SecondaryBusVoltage,4:F1}V | De-Ice: {(elec.IsDeIcingActive ? "ON" : "OFF")}");
         
         // --- HYDRAULIKA I SKRZYDŁA ---
-        string gearStatus = hydr.GearJammed ? "JAMMED!" : (hydr.IsGearTransiting ? "TRANSITING" : "STABLE");
+        string gearStatus = hydr.GearJammed
+            ? "JAMMED!"
+            : hydr.IsGearTransiting
+                ? "TRANSITING"
+                : hydr.IsGearExtended ? "DOWN" : "UP";
         Console.WriteLine($" Hydr Press: {hydr.Pressure,6:F0} PSI  | Gear: {gearStatus,-10} | Flaps: {wing.FlapsPosition * 100,3:F0}% | Spoilers: {(wing.SpoilersDeployed ? "UP" : "DOWN")}");
 
         // --- AUTOPILOT I OBLODZENIE ---
         string apStatus = ap.IsOffline ? "OFFLINE" : (ap.IsEngaged ? "ENGAGED" : "STDBY");
-        Console.WriteLine($" Autopilot:  {apStatus,-10} | WX Radar: {(weather.IsOffline ? "OFF" : "ON "),-3} | Wind: {_aircraft.FlightData.WindDirectionDeg,3:F0}/{_aircraft.FlightData.WindSpeedKnots,2:F0} kt | Ice: {wing.IceAccumulation * 100,3:F0}% {(wing.IsIceCritical() ? "[CRITICAL!]" : "")}");
+        Console.WriteLine($" Autopilot:  {apStatus,-10} | WX: {weather.CurrentCondition,-16} ({weather.SecondsToNextChange,2:F0}s) | Radar: {(weather.IsOffline ? "OFF" : "ON "),-3} | Wind: {_aircraft.FlightData.WindDirectionDeg,3:F0}/{_aircraft.FlightData.WindSpeedKnots,2:F0} kt | Ice: {wing.IceAccumulation * 100,3:F0}% {(wing.IsIceCritical() ? "[CRITICAL!]" : "")}");
 
         // --- SILNIKI (Sensory + Status Pożaru) ---
         Console.Write(" Engines: ");

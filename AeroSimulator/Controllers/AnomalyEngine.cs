@@ -86,10 +86,21 @@ public class AnomalyEngine
             if (anomaly.Resolve(_aircraft))
             {
                 ActiveAnomalies.Remove(anomaly);
+                _aircraft.PublishAlert(
+                    $"REPAIR COMPLETE: {anomaly.AnomalyName} - {anomaly.Description}",
+                    AeroSimulator.Core.Aircraft.Enums.Severity.Info);
                 return true;
             }
+
+            _aircraft.PublishAlert(
+                $"REPAIR FAILED: {anomaly.AnomalyName} - {anomaly.GetPilotAction()}",
+                AeroSimulator.Core.Aircraft.Enums.Severity.Medium);
+            return false;
         }
 
+        _aircraft.PublishAlert(
+            "NO ACTIVE REPAIRABLE ANOMALY - standby checks completed",
+            AeroSimulator.Core.Aircraft.Enums.Severity.Info);
         return false;
     }
 

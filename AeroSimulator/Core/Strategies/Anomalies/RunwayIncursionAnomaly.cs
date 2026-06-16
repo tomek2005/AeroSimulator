@@ -36,7 +36,7 @@ public sealed class RunwayIncursionAnomaly : AbstractAnomaly
         $"!! ATC: GO AROUND -- {_incursionType} !!";
 
     public override string GetPilotAction() =>
-        "Press [H] for go-around immediately. 15 seconds before collision.";
+        "Press [Spacebar] for go-around immediately. 15 seconds before collision.";
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
