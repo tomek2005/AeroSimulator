@@ -4,6 +4,8 @@ public class WeatherSystem : IAircraftSystem
 {
     public bool IsActive { get; private set; } = true;
     public double RadarRangeNm { get; private set; } = 80.0;
+    public string CurrentCondition { get; private set; } = "CLEAR SKIES";
+    public double SecondsToNextChange { get; private set; }
 
     // Spełnienie kontraktu IAircraftSystem
     public bool IsOffline => !IsActive;
@@ -15,6 +17,12 @@ public class WeatherSystem : IAircraftSystem
     {
         if (!IsActive) return false;
         return hazardDistanceNm <= RadarRangeNm;
+    }
+
+    public void SetCurrentCondition(string condition, double secondsToNextChange)
+    {
+        CurrentCondition = condition;
+        SecondsToNextChange = Math.Max(0.0, secondsToNextChange);
     }
 
     // Integracja z interfejsem awarii

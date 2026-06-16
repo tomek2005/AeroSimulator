@@ -12,11 +12,17 @@ public class LandingState : IAircraftState
     public ConsoleColor StateColor => ConsoleColor.DarkGreen;
     public IReadOnlyList<string> AllowedActions => new List<string> { "Abort", "HandleEmergency" };
 
-    public void OnEnter(Aircraft ctx) { }
+    public void OnEnter(Aircraft ctx)
+    {
+        ctx.FlightData.Throttle = Math.Min(ctx.FlightData.Throttle, 0.25);
+    }
 
     public void Update(Aircraft ctx, double deltaT)
     {
-        ctx.FlightData.Altitude -= 18.0 * deltaT; 
+        double descentRateFtMin = ctx.HydraulicSystem.IsGearExtended ? 520.0 : 220.0;
+        ctx.FlightData.VerticalSpeed = -descentRateFtMin;
+        ctx.FlightData.Altitude -= (descentRateFtMin / 60.0) * deltaT;
+        ctx.FlightData.Speed = Math.Max(0.0, ctx.FlightData.Speed - (ctx.HydraulicSystem.IsGearExtended ? 5.0 : 8.0) * deltaT);
 
         if (ctx.DamageModel.AsymmetricDragActive)
         {
@@ -34,6 +40,7 @@ public class LandingState : IAircraftState
     public void Abort(Aircraft ctx)
     {
         ctx.FlightData.Throttle = 1.0;
+        ctx.FlightData.PitchAngleDeg = 8.0;
         ctx.TransitionTo(new ClimbState());
     }
 

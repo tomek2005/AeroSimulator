@@ -13,7 +13,7 @@ public class ClimbState : IAircraftState
 
     public void OnEnter(Aircraft ctx)
     {
-        // Chowanie podwozia i klap
+        ctx.HydraulicSystem.RetractGear();
     }
 
     public void Update(Aircraft ctx, double deltaT)
@@ -38,7 +38,7 @@ public class ClimbState : IAircraftState
     }
 
     public void TakeOff(Aircraft ctx) { }
-    public void Descend(Aircraft ctx) { }
+    public void Descend(Aircraft ctx) => ctx.TransitionTo(new DescentState());
     public void Land(Aircraft ctx) { }
     public void Abort(Aircraft ctx) { }
     public void OnExit(Aircraft ctx) { }

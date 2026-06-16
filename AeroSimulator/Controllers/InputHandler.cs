@@ -34,7 +34,7 @@ public class InputHandler
                 case ConsoleKey.UpArrow: Execute(new SetThrottleCommand(0.1)); break;
                 case ConsoleKey.DownArrow: Execute(new SetThrottleCommand(-0.1)); break;
                 case ConsoleKey.R: Execute(new ResolveAnomalyCommand(_anomalyEngine)); break;
-                case ConsoleKey.F: Execute(new SetThrottleCommand(-0.1)); break;
+                //case ConsoleKey.F: Execute(new SetThrottleCommand(-0.1)); break;
                 case ConsoleKey.W: Execute(new SetPitchCommand(-2.0)); break;
                 case ConsoleKey.S: Execute(new SetPitchCommand(2.0)); break;
                 case ConsoleKey.A: Execute(new SetHeadingCommand(-5.0)); break;
@@ -45,6 +45,7 @@ public class InputHandler
                 // --- STANY ---
                 case ConsoleKey.T: Execute(new ActivateSystemCommand("TakeOff", "Advance flight phase", a => a.CurrentState.TakeOff(a))); break;
                 case ConsoleKey.L: Execute(new ActivateSystemCommand("Land", "Begin landing", a => a.CurrentState.Land(a))); break;
+                case ConsoleKey.Y: _controller.TryStartAutoLanding(); break;
                 case ConsoleKey.E: Execute(new EmergencyDeclareCommand()); break;
                 case ConsoleKey.Spacebar: Execute(new GoAroundCommand()); break;
 

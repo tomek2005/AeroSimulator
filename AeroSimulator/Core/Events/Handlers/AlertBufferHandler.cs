@@ -30,6 +30,9 @@ public class AlertBufferHandler : IFlightEventHandler
             case SystemFailureEvent failure:
                 formattedMessage = $"[WARN] FAILURE: {failure.Message}";
                 break;
+            case LandingCompletedEvent landing:
+                formattedMessage = $"[SUCCESS] LANDING: {landing.Message}";
+                break;
             case StateChangedEvent state:
                 formattedMessage = $"[INFO] STATE: {state.NewState}";
                 break;

@@ -1,4 +1,5 @@
 using AeroSimulator.Controllers;
+using AeroSimulator.Core.Aircraft.Enums;
 using AircraftModel = AeroSimulator.Core.Aircraft.Aircraft;
 
 namespace AeroSimulator.Core.Commands;
@@ -31,6 +32,10 @@ public class ResolveAnomalyCommand : IFlightCommand
             var engine = aircraft.GetEngine(i);
             if (engine.IsOnFire) engine.ExtinguishFire();
         }
+
+        aircraft.PublishAlert(
+            "MANUAL RECOVERY ACTIONS: leak sealed, gear extension commanded, backup battery selected, fire bottles checked",
+            Severity.Info);
     }
 
     public void Undo(AircraftModel aircraft) { }

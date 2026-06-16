@@ -10,6 +10,7 @@ public class ConsoleDashboardView : IScreen
     private readonly Aircraft _aircraft;
     private readonly IWidget _flightDataWidget;
     private readonly IWidget _systemsWidget;
+    private readonly IWidget _sensorsWidget;
     private readonly IWidget _legendWidget; 
     private readonly IWidget _alertWidget;
 
@@ -18,6 +19,7 @@ public class ConsoleDashboardView : IScreen
         _aircraft = aircraft;
         _flightDataWidget = new FlightDataWidget(aircraft);
         _systemsWidget = new SystemsPanelWidget(aircraft);
+        _sensorsWidget = new SensorsPanelWidget(aircraft);
         _legendWidget = new LegendWidget(); 
         _alertWidget = new AlertWidget();
     }
@@ -34,7 +36,8 @@ public class ConsoleDashboardView : IScreen
     public void RenderMainContent()
     {
         _flightDataWidget.Render();  
-        _systemsWidget.Render();     
+        _systemsWidget.Render();
+        _sensorsWidget.Render();
         _alertWidget.Render();       
     }
 
