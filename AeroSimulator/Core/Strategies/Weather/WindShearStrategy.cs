@@ -9,7 +9,6 @@ public class WindShearStrategy : IWeatherStrategy
 
     public void Apply(Aircraft aircraft, double dt)
     {
-        // Gwałtowne i nieprzewidywalne skoki prędkości wiatru (uskok wiatru)
         double shearModifier = (_rng.NextDouble() - 0.5) * 20.0;
         aircraft.FlightData.WindSpeedKnots = Math.Clamp(40.0 + shearModifier, 10.0, 70.0);
     }

@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
 
-
 public class GroundState : IAircraftState
 {
     public string StateName => "GROUND";
@@ -19,22 +18,41 @@ public class GroundState : IAircraftState
         ctx.FlightData.VerticalSpeed = 0;
     }
 
-    public void Update(Aircraft ctx, double deltaT) { }
+    public void Update(Aircraft ctx, double deltaT)
+    {
+    }
 
     public void TakeOff(Aircraft ctx)
     {
-        // Blokada startu jeśli którykolwiek z silników (niezależnie ile ich jest) ma poniżej 30% HP
         for (int i = 0; i < ctx.EngineCount; i++)
         {
             if (ctx.DamageModel.GetEngineHealth(i) <= 0.3) return;
         }
+
         ctx.TransitionTo(new TaxiState());
     }
 
-    public void Cruise(Aircraft ctx) { }
-    public void Descend(Aircraft ctx) { }
-    public void Land(Aircraft ctx) { }
-    public void HandleEmergency(Aircraft ctx) { } // Na ziemi awarie obsługują mechanicy
-    public void Abort(Aircraft ctx) { }
-    public void OnExit(Aircraft ctx) { }
+    public void Cruise(Aircraft ctx)
+    {
+    }
+
+    public void Descend(Aircraft ctx)
+    {
+    }
+
+    public void Land(Aircraft ctx)
+    {
+    }
+
+    public void HandleEmergency(Aircraft ctx)
+    {
+    }
+
+    public void Abort(Aircraft ctx)
+    {
+    }
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

@@ -4,22 +4,21 @@ using System;
 
 public class WingSystem : IAircraftSystem
 {
-    public double FlapsPosition { get; private set; } 
+    public double FlapsPosition { get; private set; }
     public bool SpoilersDeployed { get; private set; }
     public double IceAccumulation { get; private set; }
     
-    // Spełnienie kontraktu IAircraftSystem
     public bool IsOffline { get; private set; }
 
     public void SetFlaps(double position)
     {
-        if (IsOffline) return; // Klapy zablokowane w obecnej pozycji przy awarii
+        if (IsOffline) return;
         FlapsPosition = Math.Clamp(position, 0.0, 1.0);
     }
 
     public void ToggleSpoilers()
     {
-        if (IsOffline) return; // Spoilery zablokowane przy awarii
+        if (IsOffline) return;
         SpoilersDeployed = !SpoilersDeployed;
     }
 
@@ -34,8 +33,7 @@ public class WingSystem : IAircraftSystem
     }
 
     public bool IsIceCritical() => IceAccumulation > 0.8;
-
-    // Integracja z interfejsem awarii
+    
     public void SetOffline()
     {
         IsOffline = true;
@@ -44,7 +42,7 @@ public class WingSystem : IAircraftSystem
     public bool Reboot()
     {
         IsOffline = false;
-        IceAccumulation = 0.0; // Restart systemu w symulatorze oczyszcza skrzydła
+        IceAccumulation = 0.0;
         return true;
     }
 }

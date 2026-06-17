@@ -6,17 +6,15 @@ namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
-/// <summary>
-/// Abstract base class for all anomalies. Provides shared infrastructure:
-/// probability checks, event publishing, and duration tracking.
-/// </summary>
+
+// Abstract base class for all anomalies. Provides shared infrastructure:
+
 public abstract class AbstractAnomaly : IAnomaly
 {
     protected readonly Random _rng = new();
     protected double _activeDuration;
     protected bool _isActive;
-
-    // --- FLAGA ZABEZPIECZAJĄCA PRZED SPAMEM ---
+    
     private bool _hasPublishedInitialWarning = false;
 
     public abstract string AnomalyName { get; }
@@ -28,16 +26,13 @@ public abstract class AbstractAnomaly : IAnomaly
 
     public void Trigger(Aircraft ctx, FlightData data)
     {
-        // Jeśli awaria już trwa, zablokuj ponowne uruchomienie
         if (_isActive) return;
-        
+
         _isActive = true;
         _activeDuration = 0;
         
-        // 1. Uruchom logikę specyficzną dla danej awarii
         OnTrigger(ctx, data);
         
-        // 2. WYŚLIJ ALERT POWITALNY TYLKO RAZ! 
         if (!_hasPublishedInitialWarning)
         {
             ctx.Publish(new AnomalyTriggeredEvent(AnomalyName, Level, GetWarningMessage()));
@@ -48,7 +43,7 @@ public abstract class AbstractAnomaly : IAnomaly
     public void Update(Aircraft ctx, FlightData data, double deltaT)
     {
         if (!_isActive) return;
-        
+
         _activeDuration += deltaT;
         OnUpdate(ctx, data, deltaT);
     }
@@ -56,12 +51,13 @@ public abstract class AbstractAnomaly : IAnomaly
     public bool Resolve(Aircraft ctx)
     {
         if (!CanBeResolved) return false;
-        
+
         bool success = OnResolve(ctx);
         if (success)
         {
             _isActive = false;
         }
+
         return success;
     }
 

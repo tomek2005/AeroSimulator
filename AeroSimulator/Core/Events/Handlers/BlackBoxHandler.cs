@@ -13,7 +13,10 @@ public class BlackBoxHandler : IFlightEventHandler
 
     public static IReadOnlyList<FlightEvent> EventLog
     {
-        get { lock (_lock) return _recordedEvents.ToArray(); }
+        get
+        {
+            lock (_lock) return _recordedEvents.ToArray();
+        }
     }
 
     public void Handle(FlightEvent evt)
@@ -28,8 +31,7 @@ public class BlackBoxHandler : IFlightEventHandler
     {
         lock (_lock) _recordedEvents.Clear();
     }
-
-    // Zrzut pamięci do pliku .log na dysk (Podejście zoptymalizowane pod .NET)
+    
     public static void SaveToFile()
     {
         lock (_lock)
@@ -43,7 +45,7 @@ public class BlackBoxHandler : IFlightEventHandler
                 }
 
                 string filePath = Path.Combine(directory, $"blackbox_{DateTime.Now:yyyyMMdd_HHmmss}.log");
-                
+
                 var sb = new StringBuilder();
                 sb.AppendLine("================================================================================");
                 sb.AppendLine($"                  BLACKBOX FLIGHT DATA RECORDER DUMP");
@@ -52,12 +54,13 @@ public class BlackBoxHandler : IFlightEventHandler
 
                 foreach (var evt in _recordedEvents)
                 {
-                    sb.AppendLine($"[{evt.Timestamp:HH:mm:ss.fff}] [{evt.Level.ToString().ToUpper()}] [{evt.Source.ToUpper()}] {evt.Message}");
+                    sb.AppendLine(
+                        $"[{evt.Timestamp:HH:mm:ss.fff}] [{evt.Level.ToString().ToUpper()}] [{evt.Source.ToUpper()}] {evt.Message}");
                 }
 
                 File.WriteAllText(filePath, sb.ToString());
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"\n [!] SYSTEM WARNING: Failed to save blackbox log to disk.");

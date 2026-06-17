@@ -1,6 +1,6 @@
 namespace AeroSimulator.Core.Aircraft.Enums;
 
-/// <summary>All anomaly types that can be spawned or cascade-triggered.</summary>
+// All anomaly types that can be spawned or cascade-triggered.
 public enum AnomalyType
 {
     EngineFailure,

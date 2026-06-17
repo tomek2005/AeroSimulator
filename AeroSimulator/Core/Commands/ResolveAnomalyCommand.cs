@@ -38,5 +38,7 @@ public class ResolveAnomalyCommand : IFlightCommand
             Severity.Info);
     }
 
-    public void Undo(AircraftModel aircraft) { }
+    public void Undo(AircraftModel aircraft)
+    {
+    }
 }

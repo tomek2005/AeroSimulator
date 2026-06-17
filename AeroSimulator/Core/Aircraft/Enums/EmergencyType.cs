@@ -1,6 +1,6 @@
 namespace AeroSimulator.Core.Aircraft.Enums;
 
-/// <summary>Type of emergency being declared.</summary>
+// Type of emergency situations being declared.
 public enum EmergencyType
 {
     EngineFire,

@@ -22,19 +22,21 @@ public class CascadeHandler : IFlightEventHandler
         {
             switch (NormalizeName(anomaly.AnomalyName))
             {
-                // ŁAŃCUCH 1: Ptak -> Pożar silnika -> Pożar Skrzydła -> Znoszenie (Drift) -> Game Over
+                // ŁAŃCUCH 1: Ptak -> Pożar silnika -> Pożar Skrzydła -> Znoszenie -> Game Over
                 case "BIRD_STRIKE":
-                    if (_rng.NextDouble() < 0.40) // 40% szans na wciągnięcie ptaka do silnika
+                    if (_rng.NextDouble() < 0.40) 
                     {
                         int engineIndex = _rng.Next(0, _aircraft.EngineCount);
+
+                        _aircraft.Publish(new CascadeTriggeredEvent("BirdStrike", "EngineFire",
+                            $"Bird strike ingested into Engine {engineIndex + 1}!"));
+                        _aircraft.Publish(new EngineFireEvent(engineIndex,
+                            $"Catastrophic Fire detected in Engine {engineIndex + 1}!"));
                         
-                        _aircraft.Publish(new CascadeTriggeredEvent("BirdStrike", "EngineFire", $"Bird strike ingested into Engine {engineIndex + 1}!"));
-                        _aircraft.Publish(new EngineFireEvent(engineIndex, $"Catastrophic Fire detected in Engine {engineIndex + 1}!"));
-                        
-                        // Użycie publicznego API DamageModel
                         _aircraft.DamageModel.SetEngineFireState(engineIndex, FireState.Burning);
                         _aircraft.EngineSystem.GetEngine(engineIndex).StartFire();
                     }
+
                     break;
 
                 // ŁAŃCUCH 2: Silne Turbulencje -> Uszkodzenie Czujnika -> Awaria Autopilota
@@ -42,25 +44,30 @@ public class CascadeHandler : IFlightEventHandler
                 case "SEVERE_TURBULENCE":
                     if (_rng.NextDouble() < 0.35)
                     {
-                        _aircraft.Publish(new CascadeTriggeredEvent("SevereTurbulence", "SensorFault", "Violent shaking damaged external sensors!"));
+                        _aircraft.Publish(new CascadeTriggeredEvent("SevereTurbulence", "SensorFault",
+                            "Violent shaking damaged external sensors!"));
                         _aircraft.Sensors.DamageRandomSensor();
-                        
+
                         if (_aircraft.AutopilotSystem.IsEngaged)
                         {
-                            _aircraft.Publish(new SystemFailureEvent("Autopilot", 0.0, "Autopilot disconnected due to unreliable sensor data!"));
+                            _aircraft.Publish(new SystemFailureEvent("Autopilot", 0.0,
+                                "Autopilot disconnected due to unreliable sensor data!"));
                             _aircraft.AutopilotSystem.SetOffline();
                         }
                     }
+
                     break;
-                    
+
                 // ŁAŃCUCH 3: Wyciek Hydrauliki -> Zacięcie Podwozia
                 case "HYDRAULIC_FAILURE":
                 case "HYDRAULIC_LEAK":
                     if (_rng.NextDouble() < 0.50)
                     {
-                        _aircraft.Publish(new CascadeTriggeredEvent("HydraulicLeak", "GearJammed", "Loss of pressure jammed the landing gear mechanism."));
+                        _aircraft.Publish(new CascadeTriggeredEvent("HydraulicLeak", "GearJammed",
+                            "Loss of pressure jammed the landing gear mechanism."));
                         _aircraft.HydraulicSystem.JamGear();
                     }
+
                     break;
             }
         }
@@ -70,32 +77,25 @@ public class CascadeHandler : IFlightEventHandler
         }
         else if (evt is EngineFireEvent fireEvent)
         {
-            // Kontynuacja Łańcucha 1: Pożar silnika przenosi się na skrzydło
             if (_rng.NextDouble() < 0.30)
             {
-                _aircraft.Publish(new CascadeTriggeredEvent("EngineFire", "WingDamage", "Engine fire spreading and damaging the wing structure!"));
+                _aircraft.Publish(new CascadeTriggeredEvent("EngineFire", "WingDamage",
+                    "Engine fire spreading and damaging the wing structure!"));
                 _aircraft.Publish(new WingFireEvent("LEFT", "Left wing structural integrity decreasing due to fire!"));
                 
-                // Modyfikujemy tylko to, na co pozwala DamageModel.
-                // Resztę (zliczanie znoszenia i sprawdzanie Game Over) obsłuży sama metoda DamageModel.Update()
                 _aircraft.DamageModel.WingFireState = FireState.Spreading;
                 
-                // Zadajemy potężne obrażenia skrzydłu. Gdy spadnie poniżej 20%,
-                // DamageModel.Update() sam włączy AsymmetricDragActive.
-                _aircraft.DamageModel.WingHealth = Math.Max(0.0, _aircraft.DamageModel.WingHealth - 0.85); 
+                _aircraft.DamageModel.WingHealth = Math.Max(0.0, _aircraft.DamageModel.WingHealth - 0.85);
             }
-
-            // Pożar niszczy sam silnik z biegiem czasu
+            
             _aircraft.DamageModel.ApplyEngineDamage(fireEvent.EngineNumber, 0.50);
             
-            // Jeśli zdrowie silnika spadnie do 0 -> Eksplozja
             if (_aircraft.DamageModel.GetEngineHealth(fireEvent.EngineNumber) <= 0)
             {
-                _aircraft.Publish(new EngineExplosionEvent(fireEvent.EngineNumber, "Engine completely destroyed and exploded!"));
+                _aircraft.Publish(new EngineExplosionEvent(fireEvent.EngineNumber,
+                    "Engine completely destroyed and exploded!"));
                 
-                // Wywołujemy publiczną metodę TriggerExplosion(). 
-                // DamageModel sam nałoży na to flagę IsGameOver i przerwie pętlę.
-                _aircraft.DamageModel.TriggerExplosion(); 
+                _aircraft.DamageModel.TriggerExplosion();
             }
         }
     }
@@ -120,18 +120,22 @@ public class CascadeHandler : IFlightEventHandler
         switch (type)
         {
             case "ENGINE_FIRE":
-                _aircraft.Publish(new CascadeTriggeredEvent("SystemFailure", "EngineFire", $"Cascade started engine {componentIndex + 1} fire."));
+                _aircraft.Publish(new CascadeTriggeredEvent("SystemFailure", "EngineFire",
+                    $"Cascade started engine {componentIndex + 1} fire."));
                 _aircraft.DamageModel.SetEngineFireState(componentIndex, FireState.Burning);
                 _aircraft.GetEngine(componentIndex).StartFire();
-                _aircraft.Publish(new EngineFireEvent(componentIndex, $"Engine {componentIndex + 1} fire started by cascade."));
+                _aircraft.Publish(new EngineFireEvent(componentIndex,
+                    $"Engine {componentIndex + 1} fire started by cascade."));
                 return true;
 
             case "WING_FIRE":
-                _aircraft.Publish(new CascadeTriggeredEvent("EngineFire", "WingFire", "Engine fire spread to wing structure."));
+                _aircraft.Publish(new CascadeTriggeredEvent("EngineFire", "WingFire",
+                    "Engine fire spread to wing structure."));
                 _aircraft.DamageModel.WingFireState = FireState.Spreading;
                 _aircraft.DamageModel.WingHealth = Math.Max(0.0, _aircraft.DamageModel.WingHealth - 0.35);
                 _aircraft.WingSystem.SetOffline();
-                _aircraft.Publish(new WingFireEvent(componentIndex % 2 == 0 ? "LEFT" : "RIGHT", "Wing structural fire triggered by cascade."));
+                _aircraft.Publish(new WingFireEvent(componentIndex % 2 == 0 ? "LEFT" : "RIGHT",
+                    "Wing structural fire triggered by cascade."));
                 return true;
         }
 

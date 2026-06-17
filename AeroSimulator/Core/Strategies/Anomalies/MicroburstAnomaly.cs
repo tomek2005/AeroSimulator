@@ -5,31 +5,29 @@ namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
-/// <summary>
-/// Microburst wind-shear anomaly. Only valid during approach (below 2 500 ft).
-/// Creates a sudden +40 kt headwind immediately followed by a -40 kt tailwind.
-/// Player must apply full throttle and pitch up within 5 seconds or CFIT occurs.
-/// </summary>
+// Microburst wind-shear anomaly. Only valid during approach (below 2 500 ft).
+// Creates a sudden +40 kt headwind immediately followed by a -40 kt tailwind.
+// Player must apply full throttle and pitch up within 5 seconds or CFIT occurs.
 public sealed class MicroburstAnomaly : AbstractAnomaly
 {
-    private const double MaxAltitudeFt       = 2_500;
-    private const double HeadwindKts         = 40.0;
-    private const double TailwindKts         = 40.0;
-    private const double WindReversalSec     = 10.0;
-    private const double ExtraDescentFtMin   = 1_000;
-    private const double RecoveryWindowSec   = 5.0;
+    private const double MaxAltitudeFt = 2_500;
+    private const double HeadwindKts = 40.0;
+    private const double TailwindKts = 40.0;
+    private const double WindReversalSec = 10.0;
+    private const double ExtraDescentFtMin = 1_000;
+    private const double RecoveryWindowSec = 5.0;
     private const double RecoveryThrottleMin = 0.90;
     private const double RecoveryPitchMinDeg = 5.0;
 
-    private bool   _inTailwindPhase;
-    private bool   _playerRecovered;
+    private bool _inTailwindPhase;
+    private bool _playerRecovered;
     private double _timeWithoutRecovery;
 
-    public override string   AnomalyName   => "MICROBURST";
-    public override string   Description   => "Microburst wind-shear on approach — full thrust required NOW.";
-    public override Severity Level         => Severity.Critical;
-    public override double   Probability   => 0.0006;
-    public override bool     CanBeResolved => true;
+    public override string AnomalyName => "MICROBURST";
+    public override string Description => "Microburst wind-shear on approach — full thrust required NOW.";
+    public override Severity Level => Severity.Critical;
+    public override double Probability => 0.0006;
+    public override bool CanBeResolved => true;
 
     public override string GetWarningMessage() =>
         "!! CRITICAL: MICROBURST -- FULL THRUST, PITCH UP NOW !!";
@@ -39,13 +37,16 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
-        if (data.Altitude > MaxAltitudeFt) { SelfResolve(); return; }
+        if (data.Altitude > MaxAltitudeFt)
+        {
+            SelfResolve();
+            return;
+        }
 
-        _inTailwindPhase     = false;
-        _playerRecovered     = false;
+        _inTailwindPhase = false;
+        _playerRecovered = false;
         _timeWithoutRecovery = 0;
-
-        // Bezpieczne nałożenie wektora wiatru czołowego przez metodę domeny
+        
         data.ApplyWindVector(HeadwindKts, data.Heading);
     }
 
@@ -55,8 +56,7 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
 
         if (!_inTailwindPhase && _activeDuration >= WindReversalSec)
         {
-            _inTailwindPhase      = true;
-            // Bezpieczna zmiana kierunku wiatru na ogonowy (180 stopni)
+            _inTailwindPhase = true;
             data.ApplyWindVector(TailwindKts, (data.Heading + 180.0) % 360.0);
 
             PublishAlert(ctx,
@@ -65,16 +65,16 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
         }
 
         double extraDescentFtSec = ExtraDescentFtMin / 60.0;
-        data.Altitude      -= extraDescentFtSec * deltaT;
-        data.VerticalSpeed  = Math.Min(data.VerticalSpeed, -ExtraDescentFtMin);
+        data.Altitude -= extraDescentFtSec * deltaT;
+        data.VerticalSpeed = Math.Min(data.VerticalSpeed, -ExtraDescentFtMin);
 
         bool throttleOk = data.Throttle >= RecoveryThrottleMin;
-        bool pitchOk    = data.PitchAngleDeg >= RecoveryPitchMinDeg;
+        bool pitchOk = data.PitchAngleDeg >= RecoveryPitchMinDeg;
 
         if (throttleOk && pitchOk)
         {
             _playerRecovered = true;
-            data.ResetWind(); // Przywrócenie spokojnego powietrza po ucieczce z mikroburstu
+            data.ResetWind();
             SelfResolve();
             return;
         }
@@ -82,15 +82,12 @@ public sealed class MicroburstAnomaly : AbstractAnomaly
         _timeWithoutRecovery += deltaT;
         if (_timeWithoutRecovery >= RecoveryWindowSec)
         {
-            // POPRAWKA KORPORACYJNA: Zamiast bezpośredniego set; na właściwościach,
-            // wywołujemy intencjonalną metodę publiczną z interfejsu modelu zniszczeń.
             ctx.DamageModel.TriggerGameOver("CFIT — microburst, failed to recover");
         }
     }
 
     protected override bool OnResolve(Aircraft ctx)
     {
-        // Wyjście awaryjne (skrót klawiszowy R): automatyczna próba ratunku pełnym ciągiem
         ctx.FlightData.Throttle = 1.0;
         ctx.FlightData.ResetWind();
         return false;

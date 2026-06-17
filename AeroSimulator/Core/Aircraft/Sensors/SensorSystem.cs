@@ -2,16 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AeroSimulator.Core.Aircraft.Enums;
-using AeroSimulator.Core.Common; // <-- IMPORT NASZEJ MONADY
+using AeroSimulator.Core.Common;
 
 namespace AeroSimulator.Core.Aircraft.Sensors;
 
-/// <summary>
-/// Aggregates every sensor on the aircraft.
-/// Supports dynamic number of engines (1, 2, 4, 6, etc.).
-/// The view and autopilot <b>always read from this class</b>, never from
-/// <see cref="FlightData"/> directly.
-/// </summary>
+// Aggregates every sensor on the aircraft. The view and autopilot always read from this class
 public class SensorSystem
 {
     public AltitudeSensor Altitude { get; } = new();
@@ -39,8 +34,7 @@ public class SensorSystem
             _engineTemps[i] = new EngineTempSensor(i);
         }
     }
-
-    // 1. Słownik przechowuje teraz bezpieczne monady Option zamiast surowych liczb
+    
     private readonly Dictionary<string, Option<double>> _cache = new();
     private IReadOnlyList<ISensor>? _allSensors;
 
@@ -56,12 +50,12 @@ public class SensorSystem
             list.AddRange(_engineTemps);
             _allSensors = list.AsReadOnly();
         }
+
         return _allSensors;
     }
 
     public void Update(double dt, FlightData data)
     {
-        // Metoda Read() zwraca Option<double>, co idealnie wchodzi do nowego słownika
         _cache[Altitude.SensorName] = Altitude.Read(data.Altitude);
         _cache[Airspeed.SensorName] = Airspeed.Read(data.Speed);
         _cache[FuelLevel.SensorName] = FuelLevel.Read(data.FuelLevelKg);
@@ -80,8 +74,7 @@ public class SensorSystem
     {
         _cache[HydraulicPressure.SensorName] = HydraulicPressure.Read(realPressure);
     }
-
-    // 2. Pobieranie danych ze słownika — jeśli czujnika w ogóle nie ma, też zwracamy None(), a nie -1.0
+    
     public Option<double> GetReading(string sensorName) =>
         _cache.TryGetValue(sensorName, out var value) ? value : Option<double>.None();
 

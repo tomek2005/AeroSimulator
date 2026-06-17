@@ -12,7 +12,7 @@ public class HorizonWidget : IWidget
     public void Render()
     {
         var roll = _aircraft.FlightData.RollAngleDeg;
-        
+
         Console.WriteLine();
         if (roll < -15.0)
         {
@@ -38,6 +38,7 @@ public class HorizonWidget : IWidget
             Console.WriteLine(@"                         ");
             Console.WriteLine(@"       LEVEL FLIGHT      ");
         }
+
         Console.WriteLine();
     }
 }

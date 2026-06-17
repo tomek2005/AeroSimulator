@@ -5,14 +5,12 @@ namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
-/// <summary>
-/// Runway incursion anomaly. Only valid in LandingState below 500 ft AGL.
-/// ATC reports another aircraft or vehicle on the runway. The player has 15
-/// seconds to execute a go-around by pressing [H]. Failure → collision GAME OVER.
-/// </summary>
+// Runway incursion anomaly. Only valid in LandingState below 500 ft AGL.
+// ATC reports another aircraft or vehicle on the runway. The player has 15
+// seconds to execute a go-around by pressing [H]. Failure → collision GAME OVER.
 public sealed class RunwayIncursionAnomaly : AbstractAnomaly
 {
-    private const double MaxAltitudeFt     = 500;
+    private const double MaxAltitudeFt = 500;
     private const double GoAroundWindowSec = 15.0;
 
     private static readonly string[] IncursionTypes =
@@ -24,13 +22,13 @@ public sealed class RunwayIncursionAnomaly : AbstractAnomaly
     ];
 
     private string _incursionType = string.Empty;
-    private bool   _goAroundExecuted;
+    private bool _goAroundExecuted;
 
-    public override string   AnomalyName   => "RUNWAY INCURSION";
-    public override string   Description   => "Runway not clear — go-around required immediately.";
-    public override Severity Level         => Severity.Critical;
-    public override double   Probability   => 0.0010;
-    public override bool     CanBeResolved => true;
+    public override string AnomalyName => "RUNWAY INCURSION";
+    public override string Description => "Runway not clear — go-around required immediately.";
+    public override Severity Level => Severity.Critical;
+    public override double Probability => 0.0010;
+    public override bool CanBeResolved => true;
 
     public override string GetWarningMessage() =>
         $"!! ATC: GO AROUND -- {_incursionType} !!";
@@ -40,9 +38,13 @@ public sealed class RunwayIncursionAnomaly : AbstractAnomaly
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
-        if (data.Altitude > MaxAltitudeFt) { SelfResolve(); return; }
+        if (data.Altitude > MaxAltitudeFt)
+        {
+            SelfResolve();
+            return;
+        }
 
-        _incursionType    = IncursionTypes[_rng.Next(IncursionTypes.Length)];
+        _incursionType = IncursionTypes[_rng.Next(IncursionTypes.Length)];
         _goAroundExecuted = false;
     }
 
@@ -59,7 +61,6 @@ public sealed class RunwayIncursionAnomaly : AbstractAnomaly
 
         if (_activeDuration >= GoAroundWindowSec)
         {
-            // Poprawka: Użycie bezpiecznej metody z DamageModel (enkapsulacja)
             ctx.DamageModel.TriggerGameOver($"Runway collision — {_incursionType}");
         }
     }
@@ -67,7 +68,6 @@ public sealed class RunwayIncursionAnomaly : AbstractAnomaly
     protected override bool OnResolve(Aircraft ctx)
     {
         _goAroundExecuted = true;
-        // Zamiast wymuszonego ctx.Abort(), informujemy system, że pilot przerwał lądowanie
         PublishAlert(ctx, "GO-AROUND INITIATED - CLIMBING TO SAFE ALTITUDE", Severity.Info);
         SelfResolve();
         return true;

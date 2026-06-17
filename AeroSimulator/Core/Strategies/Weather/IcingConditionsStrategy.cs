@@ -10,6 +10,5 @@ public class IcingConditionsStrategy : IWeatherStrategy
     {
         aircraft.FlightData.TemperatureC = -15.0;
         aircraft.FlightData.WindSpeedKnots = 22.0;
-        // Sprawia, że IcingAnomaly rozwija się znacznie szybciej
     }
 }
