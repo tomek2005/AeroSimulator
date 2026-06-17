@@ -2,7 +2,7 @@ using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Events;
 
-public class LandingCompletedEvent : FlightEvent
+public record LandingCompletedEvent : FlightEvent
 {
     public bool GearExtended { get; init; }
     public double TouchdownSpeedKts { get; init; }
