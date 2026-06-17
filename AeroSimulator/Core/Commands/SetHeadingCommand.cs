@@ -18,7 +18,7 @@ public class SetHeadingCommand : IFlightCommand
     public void Execute(AircraftModel aircraft)
     {
         _previousRoll = aircraft.FlightData.RollAngleDeg;
-        aircraft.FlightData.RollAngleDeg = Math.Clamp(_previousRoll + _rollDeltaDeg, -60.0, 60.0);
+        aircraft.FlightData.RollAngleDeg = Math.Clamp(_previousRoll + _rollDeltaDeg, -45.0, 45.0);
     }
 
     public void Undo(AircraftModel aircraft)

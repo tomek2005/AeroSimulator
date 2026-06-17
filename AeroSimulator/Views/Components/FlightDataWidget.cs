@@ -27,6 +27,7 @@ public class FlightDataWidget : IWidget
         string fuelBar = new string('█', filledBars).PadRight(10, '░');
 
         Console.WriteLine("\n[ NAVIGATION & DYNAMICS ]");
+        Console.WriteLine($" Flight State: {_aircraft.CurrentState.StateName,-10} | {_aircraft.CurrentState.StateDescription}");
         Console.WriteLine($" Target HDG:  {fd.TargetHeading,7:F0} DEG   | Target ALT:    {fd.TargetAltitude,7:F0} FT");
         Console.WriteLine($" Altitude:    {displayAlt,7:F0} FT    | Vertical Spd:  {fd.VerticalSpeed,7:F0} FT/MIN");
         Console.WriteLine($" Airspeed:    {displaySpd,7:F0} KTS   | Heading (IMU): {fd.Heading,7:F0} DEG");
