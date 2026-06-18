@@ -25,6 +25,14 @@ public class FlightDataWidget : IWidget
         int filledBars = (int)(fuelPct * 10);
         string fuelBar = new string('█', filledBars).PadRight(10, '░');
 
+        string approachStatus = "EN ROUTE";
+        if (fd.IsInLandingZone()) 
+            approachStatus = "READY TO LAND (Press L)";
+        else if (fd.DistanceToDestinationNm <= 5.0) 
+            approachStatus = "FINAL APPROACH - GEAR DOWN";
+        else if (fd.DistanceToDestinationNm <= 20.0) 
+            approachStatus = "APPROACH - DESCEND & SLOW";
+
         Console.WriteLine("\n[ NAVIGATION & DYNAMICS ]");
         Console.WriteLine(
             $" Flight State: {_aircraft.CurrentState.StateName,-10} | {_aircraft.CurrentState.StateDescription}");
@@ -34,5 +42,9 @@ public class FlightDataWidget : IWidget
         Console.WriteLine($" Pitch Angle: {fd.PitchAngleDeg,7:F1} DEG   | Roll Angle:    {fd.RollAngleDeg,7:F1} DEG");
         Console.WriteLine(
             $" Throttle:    {fd.Throttle * 100,7:F0} %     | Fuel: [{fuelBar}] {fuelPct * 100:F1}% ({fd.FuelFlowKgPerH:F0} kg/h)");
+
+        Console.WriteLine("\n[ DESTINATION & ILS ]");
+        Console.WriteLine($" Destination: {fd.DestinationName,-18} | Elevation:     {fd.AirportElevation,7:F0} FT");
+        Console.WriteLine($" Distance:    {fd.DistanceToDestinationNm,7:F1} NM   | Status:        {approachStatus}");
     }
 }

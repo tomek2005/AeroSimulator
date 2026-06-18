@@ -79,10 +79,12 @@ public class FlightController
                 double rollBeforeUpdate = _aircraft.FlightData.RollAngleDeg;
                 bool gearExtendedBeforeUpdate = _aircraft.HydraulicSystem.IsGearExtended;
 
-                // Systems and physic 
                 UpdateWeather(deltaT);
                 EnforceFlightEnvelope();
                 _aircraft.Update(deltaT);
+                
+                _aircraft.FlightData.UpdateNavigation(deltaT);
+
                 AutoManageFlightPhase();
                 ApplyAutoLandingAssist(deltaT);
                 _anomalyEngine.Tick(deltaT);
@@ -221,6 +223,18 @@ public class FlightController
 
         if (stableApproach)
         {
+
+            if (_aircraft.FlightData.DistanceToDestinationNm > 5.0)
+            {
+                string offAirportReason = $"ZBEZPIECZONO LĄDOWANIE, ALE POZA LOTNISKIEM! Jesteś {_aircraft.FlightData.DistanceToDestinationNm:F0} mil od celu. Ekipy ratunkowe są w drodze.";
+                _aircraft.DamageModel.TriggerGameOver(offAirportReason);
+                _aircraft.Publish(new GameOverEvent(offAirportReason));
+                _isRunning = false;
+                return;
+            }
+
+            SetState(new GroundState());
+
             _landedSafely = true;
             _isRunning = false;
             _aircraft.Publish(new LandingCompletedEvent(

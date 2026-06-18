@@ -20,7 +20,11 @@ public static class AircraftFactory
             FuelCapacityKg = config.Aircraft.MaxFuelKg,
             TargetSpeed = config.Aircraft.CruiseSpeedKts,
             TargetAltitude = Math.Min(config.Aircraft.MaxAltitudeFt, 35000.0),
-            Config = config.Aircraft
+            Config = config.Aircraft,
+
+            DestinationName = config.Route.Description, 
+            
+            DistanceToDestinationNm = config.Route.DistanceKm * 0.539957 
         };
         
         var sensorSystem = new SensorSystem(config.Aircraft.EngineCount);
