@@ -76,7 +76,7 @@ public class FlightData
 
     public bool IsInLandingZone()
     {
-        bool isClose = DistanceToDestinationNm <= 3.0;
+        bool isClose = DistanceToDestinationNm <= 5.0;
         bool isLow = (Altitude - AirportElevation) < 1500 && (Altitude - AirportElevation) > 0;
         bool isSlowEnough = Speed < 160; 
 
