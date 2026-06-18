@@ -6,25 +6,23 @@ namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
-/// <summary>
-/// Random sensor failure anomaly. Preferentially targets altitude and airspeed
-/// sensors because those are coupled to the autopilot — a faulted altitude sensor
-/// causes the autopilot to drift the real altitude by ±50 ft/sec, forcing the
-/// player to disengage AP and fly manually until the sensor is repaired.
-/// </summary>
+// Random sensor failure anomaly. Preferentially targets altitude and airspeed
+// sensors because those are coupled to the autopilot — a faulted altitude sensor
+// causes the autopilot to drift the real altitude by ±50 ft/sec, forcing the
+// player to disengage AP and fly manually until the sensor is repaired.
 public sealed class SensorFailureAnomaly : AbstractAnomaly
 {
     private const double SensorDamageAmount = 0.70;
 
     private ISensor? _targetSensor;
-    private bool     _isAltitudeSensor;
-    private bool     _autopilotWarningIssued;
+    private bool _isAltitudeSensor;
+    private bool _autopilotWarningIssued;
 
-    public override string   AnomalyName   => "SENSOR FAILURE";
-    public override string   Description   => "Critical flight sensor has failed — instrument readings unreliable.";
-    public override Severity Level         => Severity.High;
-    public override double   Probability   => 0.0006;
-    public override bool     CanBeResolved => true;
+    public override string AnomalyName => "SENSOR FAILURE";
+    public override string Description => "Critical flight sensor has failed — instrument readings unreliable.";
+    public override Severity Level => Severity.High;
+    public override double Probability => 0.0006;
+    public override bool CanBeResolved => true;
 
     public override string GetWarningMessage() =>
         $"!! WARNING: SENSOR FAULT on {_targetSensor?.SensorName ?? "UNKNOWN"} -- readings unreliable !!";
@@ -48,16 +46,14 @@ public sealed class SensorFailureAnomaly : AbstractAnomaly
     protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
     {
         if (_targetSensor == null) return;
-
-        // POPRAWKA ARCHITEKTURY: Anomalia TYLKO ostrzega!
-        // To Autopilot (w klasie AutopilotSystem) po przeczytaniu błędu z tego czujnika
-        // sam błędnie zmodyfikuje data.Altitude w swoim własnym cyklu Update().
+        
         if (_isAltitudeSensor && _targetSensor.State == SensorState.Fault && ctx.AutopilotSystem.IsEngaged)
         {
             if (!_autopilotWarningIssued)
             {
                 _autopilotWarningIssued = true;
-                PublishAlert(ctx, "AUTOPILOT receiving faulty telemetry -- DISENGAGE AP immediately", Severity.Critical);
+                PublishAlert(ctx, "AUTOPILOT receiving faulty telemetry -- DISENGAGE AP immediately",
+                    Severity.Critical);
             }
         }
     }

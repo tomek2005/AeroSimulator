@@ -5,13 +5,12 @@ namespace AeroSimulator.Views;
 public class IntroSplashScreen : IScreen
 {
     public string Title => "AeroSim - Splash Screen";
-    
+
     public async Task ShowAsync()
     {
         Console.CursorVisible = false;
         RenderAll();
-
-        // Asynchroniczne czekanie do 3 sekund, ale gracz może pominąć wciskając cokolwiek
+        
         var timeoutTask = Task.Delay(3000);
         var inputTask = Task.Run(() => Console.ReadKey(true));
 
@@ -19,7 +18,6 @@ public class IntroSplashScreen : IScreen
 
         if (completedTask == inputTask)
         {
-            // Oczyszczamy bufor klawiatury, jeśli gracz przerwał
             while (Console.KeyAvailable) Console.ReadKey(true);
         }
     }
@@ -27,7 +25,6 @@ public class IntroSplashScreen : IScreen
     public void RenderAll()
     {
         Console.Clear();
-        // POPRAWKA: RenderAll wywołuje teraz wszystkie niezbędne części ekranu
         RenderHeader();
         RenderMainContent();
         RenderFooter();
@@ -61,13 +58,15 @@ public class IntroSplashScreen : IScreen
         Console.ResetColor();
     }
 
-    public void RenderFooter() 
-    { 
+    public void RenderFooter()
+    {
         Console.SetCursorPosition(0, Console.WindowHeight - 2);
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.Write("  Naciśnij dowolny klawisz, aby pominąć...");
         Console.ResetColor();
     }
-    
-    public void HandleInput(ConsoleKey key) { /* Obsługa ujęta w Task.WhenAny */ }
+
+    public void HandleInput(ConsoleKey key)
+    {
+    }
 }

@@ -6,15 +6,12 @@ namespace AeroSimulator.Views;
 
 public static class FlightReportView
 {
-    /// <summary>
-    /// Metoda rysująca raport. Zgodnie z MVC, otrzymuje tylko DTO (Snapshot) i nie ma dostępu do żywego samolotu.
-    /// </summary>
     public static void PrintFinalReport(
-        FlightDataSnapshot dataSnapshot, 
-        IReadOnlyList<ISensor> sensors, 
-        string aircraftName, 
-        int engineCount, 
-        bool isGameOver, 
+        FlightDataSnapshot dataSnapshot,
+        IReadOnlyList<ISensor> sensors,
+        string aircraftName,
+        int engineCount,
+        bool isGameOver,
         string gameOverReason,
         string finalStateName)
     {
@@ -22,15 +19,15 @@ public static class FlightReportView
         Console.WriteLine("\n==================================================");
         Console.WriteLine("                RAPORT KOŃCOWY LOTU               ");
         Console.WriteLine("==================================================");
-        
+
         Console.WriteLine($"Samolot:        {aircraftName} ({engineCount}x Engine)");
         Console.WriteLine($"Czas trwania:   {dataSnapshot.FlightTime.TotalSeconds:F1} sekund");
         Console.WriteLine($"Wysokość końc.: {dataSnapshot.Altitude:F0} ft");
         Console.WriteLine($"Prędkość końc.: {dataSnapshot.Speed:F1} kts");
-        
+
         Console.WriteLine("--------------------------------------------------");
         Console.WriteLine(" STAN CZUJNIKÓW AWIONIKI:");
-        
+
         foreach (var sensor in sensors)
         {
             Console.ForegroundColor = sensor.State switch
@@ -43,6 +40,7 @@ public static class FlightReportView
             };
             Console.WriteLine($"  {sensor.SensorName,-15} {sensor.State,-8} (Sprawność: {sensor.Accuracy * 100:0}%)");
         }
+
         Console.ResetColor();
 
         Console.WriteLine("--------------------------------------------------");
@@ -62,6 +60,7 @@ public static class FlightReportView
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("STATUS LOTU: PRZERWANY / ZAKOŃCZONY W LOCIE");
         }
+
         Console.ResetColor();
         Console.WriteLine("==================================================\n");
     }

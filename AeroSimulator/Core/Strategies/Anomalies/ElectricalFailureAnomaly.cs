@@ -2,27 +2,27 @@ using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
 
 namespace AeroSimulator.Core.Strategies.Anomalies;
+
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
-/// <summary>
-/// Electrical system failure. Main bus drops immediately, taking the autopilot
-/// offline and reducing all sensor accuracy by 40 %. After 30 seconds the
-/// secondary bus also fails, knocking out the navigation system.
-/// </summary>
+
+// Electrical system failure. Main bus drops immediately, taking the autopilot
+// offline and reducing all sensor accuracy by 40 %. After 30 seconds the
+// secondary bus also fails, knocking out the navigation system.
 public sealed class ElectricalFailureAnomaly : AbstractAnomaly
 {
-    private const double SensorAccuracyPenalty   = 0.40;
-    private const double BackupSensorRecovery    = 0.20;
-    private const double SecondaryBusFailureSec  = 30.0;
-    private const double SystemDecayPerSec       = 0.005;
+    private const double SensorAccuracyPenalty = 0.40;
+    private const double BackupSensorRecovery = 0.20;
+    private const double SecondaryBusFailureSec = 30.0;
+    private const double SystemDecayPerSec = 0.005;
 
     private bool _secondaryBusFailed;
     private bool _onBackupBattery;
 
-    public override string   AnomalyName   => "ELECTRICAL FAILURE";
-    public override string   Description   => "Main electrical bus failure — autopilot offline, sensors degraded.";
-    public override Severity Level         => Severity.High;
-    public override double   Probability   => 0.0004;
-    public override bool     CanBeResolved => true;
+    public override string AnomalyName => "ELECTRICAL FAILURE";
+    public override string Description => "Main electrical bus failure — autopilot offline, sensors degraded.";
+    public override Severity Level => Severity.High;
+    public override double Probability => 0.0004;
+    public override bool CanBeResolved => true;
 
     public override string GetWarningMessage() =>
         "!! WARNING: ELECTRICAL FAILURE -- autopilot offline, sensors degraded !!";
@@ -33,7 +33,7 @@ public sealed class ElectricalFailureAnomaly : AbstractAnomaly
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
         _secondaryBusFailed = false;
-        _onBackupBattery    = false;
+        _onBackupBattery = false;
 
         ctx.ElectricalSystem.CutMainBus();
         ctx.AutopilotSystem.Disengage();
@@ -54,7 +54,7 @@ public sealed class ElectricalFailureAnomaly : AbstractAnomaly
         if (!_onBackupBattery)
         {
             ctx.ApplyDamage(SystemType.Navigation, SystemDecayPerSec * deltaT);
-            ctx.ApplyDamage(SystemType.Autopilot,  SystemDecayPerSec * deltaT);
+            ctx.ApplyDamage(SystemType.Autopilot, SystemDecayPerSec * deltaT);
         }
     }
 
@@ -71,6 +71,7 @@ public sealed class ElectricalFailureAnomaly : AbstractAnomaly
             foreach (var sensor in ctx.Sensors.GetAllSensors())
                 sensor.ApplyDamage(SensorAccuracyPenalty - BackupSensorRecovery);
         }
+
         return switched;
     }
 }

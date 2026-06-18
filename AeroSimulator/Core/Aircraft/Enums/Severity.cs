@@ -1,6 +1,6 @@
 namespace AeroSimulator.Core.Aircraft.Enums;
 
-/// <summary>Severity level used by anomalies, events, and alerts.</summary>
+// Severity level used by anomalies, events, and alerts.
 public enum Severity
 {
     Info,

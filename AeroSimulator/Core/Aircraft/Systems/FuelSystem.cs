@@ -18,16 +18,17 @@ public class FuelSystem : IAircraftSystem
             CurrentLeakRate = 0;
             return true;
         }
+
         return false;
     }
 
     public bool CheckIgnitionRisk()
     {
-        // Ryzyko zapłonu występuje tylko przy dużym wycieku
-        return CurrentLeakRate > 150.0; 
+        return CurrentLeakRate > 150.0;
     }
 
     public void SetOffline() => IsOffline = true;
+
     public bool Reboot()
     {
         IsOffline = false;

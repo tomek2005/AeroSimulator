@@ -1,7 +1,7 @@
 namespace AeroSimulator.Core.Aircraft.Systems;
 
 using System;
-using AeroSimulator.Core.Aircraft; // Zapewnia widoczność Aircraft i FlightData
+using AeroSimulator.Core.Aircraft;
 
 // Menedżer zarządzający wszystkimi silnikami
 public class EngineSystem : IAircraftSystem
@@ -9,14 +9,13 @@ public class EngineSystem : IAircraftSystem
     public EngineUnit[] Engines { get; }
     public int EngineCount => Engines.Length;
     
-    // Spełnienie kontraktu IAircraftSystem
     public bool IsOffline { get; private set; }
 
     public EngineSystem(int engineCount)
     {
-        engineCount = Math.Max(1, engineCount); 
+        engineCount = Math.Max(1, engineCount);
         Engines = new EngineUnit[engineCount];
-        
+
         for (int i = 0; i < engineCount; i++)
         {
             Engines[i] = new EngineUnit();
@@ -28,8 +27,7 @@ public class EngineSystem : IAircraftSystem
         if (index < 0 || index >= EngineCount) return Engines[0];
         return Engines[index];
     }
-
-    // Jeśli cały system silników zostanie odcięty awaryjnie
+    
     public void SetOffline()
     {
         IsOffline = true;
@@ -46,6 +44,7 @@ public class EngineSystem : IAircraftSystem
         {
             engine.Restart();
         }
+
         return true;
     }
 }
@@ -53,7 +52,6 @@ public class EngineSystem : IAircraftSystem
 // Reprezentacja fizycznego, pojedynczego silnika
 public class EngineUnit
 {
-    // Zamiana na private set — zasada "Tell, Don't Ask"
     public double Health { get; private set; } = 1.0;
     public bool IsOnFire { get; private set; }
     public bool IsRunning { get; private set; } = true;
@@ -64,7 +62,7 @@ public class EngineUnit
     }
 
     public void StartFire() => IsOnFire = true;
-    
+
     public bool ExtinguishFire()
     {
         if (!IsOnFire) return false;
@@ -76,9 +74,8 @@ public class EngineUnit
     {
         Health = 0.0;
         IsOnFire = false;
-        if (data != null) 
+        if (data != null)
         {
-            // Poprawka: Wywołanie dedykowanej metody bodźca zamiast nadpisywania pola
             data.ApplyGForceSpike(2.0);
         }
     }
@@ -90,11 +87,12 @@ public class EngineUnit
 
     public bool Restart()
     {
-        if (Health > 0.2) 
+        if (Health > 0.2)
         {
             IsRunning = true;
             return true;
         }
-        return false; 
+
+        return false;
     }
 }

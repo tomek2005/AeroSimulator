@@ -1,8 +1,6 @@
 namespace AeroSimulator.Infrastructure;
 
-/// <summary>
-/// Reprezentuje mniejszy, reużywalny komponent graficzny (np. AltimeterWidget, SystemsPanelWidget).
-/// </summary>
+// Reprezentuje mniejszy, reużywalny komponent graficzny (np. AltimeterWidget, SystemsPanelWidget).
 public interface IWidget
 {
     void Render();

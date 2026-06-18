@@ -21,7 +21,8 @@ public class CameraView : IScreen
     {
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.WriteLine("================================================================================");
-        Console.WriteLine($" {Title.PadRight(30)} | MODE: {_aircraft.CurrentState.StateName.PadRight(15)} | PRESS 'V' TO PFD VIEW ");
+        Console.WriteLine(
+            $" {Title.PadRight(30)} | MODE: {_aircraft.CurrentState.StateName.PadRight(15)} | PRESS 'V' TO PFD VIEW ");
         Console.WriteLine("================================================================================");
         Console.ResetColor();
     }
@@ -29,9 +30,9 @@ public class CameraView : IScreen
     public void RenderMainContent()
     {
         var fd = _aircraft.FlightData;
-        // USUNIĘTO \n żeby konsola nie skakała!
-        Console.WriteLine($" ALT: {fd.Altitude,5:F0} FT  |  SPD: {fd.Speed,3:F0} KTS  |  PITCH: {fd.PitchAngleDeg,4:F1}°  |  ROLL: {fd.RollAngleDeg,4:F1}°");
-        
+        Console.WriteLine(
+            $" ALT: {fd.Altitude,5:F0} FT  |  SPD: {fd.Speed,3:F0} KTS  |  PITCH: {fd.PitchAngleDeg,4:F1}°  |  ROLL: {fd.RollAngleDeg,4:F1}°");
+
         _horizonWidget.Render();
     }
 
@@ -66,5 +67,7 @@ public class CameraView : IScreen
         }
     }
 
-    public void HandleInput(ConsoleKey key) { }
+    public void HandleInput(ConsoleKey key)
+    {
+    }
 }

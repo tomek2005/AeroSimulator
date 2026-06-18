@@ -11,7 +11,6 @@ public class AlertSystemHandler : IFlightEventHandler
 
     public void Handle(FlightEvent evt)
     {
-        // Ignorujemy zwykłe informacje (Info) oraz niskie zagrożenia (Low)
         if (evt.Level == Severity.Medium || evt.Level == Severity.High || evt.Level == Severity.Critical)
         {
             string prefix = evt.Level switch
@@ -23,10 +22,9 @@ public class AlertSystemHandler : IFlightEventHandler
             };
 
             string formattedAlert = $"{prefix} {evt.Timestamp:HH:mm:ss} -> {evt.Message}";
-            
-            _activeAlerts.Add(formattedAlert);
 
-            // Ograniczamy listę np. do 4 ostatnich alertów, żeby nie zalały małego widżetu konsoli
+            _activeAlerts.Add(formattedAlert);
+            
             if (_activeAlerts.Count > 4)
             {
                 _activeAlerts.RemoveAt(0);

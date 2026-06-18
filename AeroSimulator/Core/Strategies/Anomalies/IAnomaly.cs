@@ -5,11 +5,8 @@ using AeroSimulator.Core.Aircraft.Enums;
 namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
-/// <summary>
-/// Defines the contract for all flight anomalies that can occur during simulation.
-/// Anomalies are the Strategy pattern implementations — each encapsulates a specific
-/// failure scenario with its own trigger logic, update behavior, and resolution path.
-/// </summary>
+
+// Defines the contract for all flight anomalies that can occur during simulation.
 public interface IAnomaly
 {
     string AnomalyName { get; }

@@ -10,9 +10,6 @@ public class ThunderstormStrategy : IWeatherStrategy
     {
         aircraft.FlightData.WindSpeedKnots = 45.0;
         aircraft.FlightData.WindDirectionDeg = 180.0;
-        
-        // Zgodnie z sekcją 3.1: "Turbulence -> sensor noise on altimeter"
-        // Wstrzykujemy szum losowy do systemów sensorów
         aircraft.Sensors.Altitude.AddNoise(0.15);
         aircraft.Sensors.Airspeed.AddNoise(0.10);
     }

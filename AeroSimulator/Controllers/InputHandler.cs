@@ -30,12 +30,10 @@ public class InputHandler
             {
                 case ConsoleKey.V: _controller.ToggleView(); break;
                 case ConsoleKey.Escape: _controller.Quit(); break;
-
-                // --- STEROWANIE FIZYCZNE (Dostosowane do Maca) ---
+                
                 case ConsoleKey.UpArrow: Execute(new SetThrottleCommand(0.1)); break;
                 case ConsoleKey.DownArrow: Execute(new SetThrottleCommand(-0.1)); break;
                 case ConsoleKey.R: Execute(new ResolveAnomalyCommand(_anomalyEngine)); break;
-                //case ConsoleKey.F: Execute(new SetThrottleCommand(-0.1)); break;
                 case ConsoleKey.W: Execute(new SetPitchCommand(-2.0)); break;
                 case ConsoleKey.S: Execute(new SetPitchCommand(2.0)); break;
                 case ConsoleKey.A: Execute(new SetHeadingCommand(-2.0)); break;
@@ -51,14 +49,17 @@ public class InputHandler
                 case ConsoleKey.U: _history.UndoLast(_aircraft); break;
                 case ConsoleKey.P: _controller.TogglePause(); break;
 
-                // --- STANY ---
-                case ConsoleKey.T: Execute(new ActivateSystemCommand("TakeOff", "Advance flight phase", a => a.CurrentState.TakeOff(a))); break;
+                // States
+                case ConsoleKey.T:
+                    Execute(
+                        new ActivateSystemCommand("TakeOff", "Advance flight phase", a => a.CurrentState.TakeOff(a)));
+                    break;
                 case ConsoleKey.L: _controller.NotifyLandingPhaseIsAutomatic(); break;
                 case ConsoleKey.Y: _controller.TryStartAutoLanding(); break;
                 case ConsoleKey.E: Execute(new EmergencyDeclareCommand()); break;
                 case ConsoleKey.Spacebar: Execute(new GoAroundCommand()); break;
 
-                // --- SYSTEMY ---
+                // Systems
                 case ConsoleKey.O:
                     Execute(new ActivateSystemCommand("Engines", "Toggle all engines", a =>
                     {
@@ -73,7 +74,9 @@ public class InputHandler
                         else a.ElectricalSystem.Reboot();
                     }));
                     break;
-                case ConsoleKey.I: Execute(new ActivateSystemCommand("DeIcing", "Activate de-icing", a => a.ElectricalSystem.ActivateDeIcing())); break;
+                case ConsoleKey.I:
+                    Execute(new ActivateSystemCommand("DeIcing", "Activate de-icing",
+                        a => a.ElectricalSystem.ActivateDeIcing())); break;
                 case ConsoleKey.H:
                     Execute(new ActivateSystemCommand("Hydraulics", "Toggle hydraulics", a =>
                     {
@@ -81,15 +84,24 @@ public class InputHandler
                         else a.HydraulicSystem.Reboot();
                     }));
                     break;
-                case ConsoleKey.G: Execute(new ActivateSystemCommand("Gear", "Emergency gear extension", a => a.HydraulicSystem.EmergencyGearExtension())); break;
+                case ConsoleKey.G:
+                    Execute(new ActivateSystemCommand("Gear", "Emergency gear extension",
+                        a => a.HydraulicSystem.EmergencyGearExtension())); break;
                 
-                // Uszczelnienie paliwa pod 'K'
-                case ConsoleKey.K: Execute(new ActivateSystemCommand("FuelLeak", "Seal fuel leak", a => a.FuelSystem.SealLeak())); break;
-
-                // SKRZYDŁA (Zwykłe cyfry na klawiaturze)
-                case ConsoleKey.C: Execute(new ActivateSystemCommand("Spoilers", "Toggle spoilers", a => a.WingSystem.ToggleSpoilers())); break;
-                case ConsoleKey.D1: Execute(new ActivateSystemCommand("Flaps", "Flaps down", a => a.WingSystem.SetFlaps(a.WingSystem.FlapsPosition + 0.25))); break;
-                case ConsoleKey.D2: Execute(new ActivateSystemCommand("Flaps", "Flaps up", a => a.WingSystem.SetFlaps(a.WingSystem.FlapsPosition - 0.25))); break;
+                case ConsoleKey.K:
+                    Execute(new ActivateSystemCommand("FuelLeak", "Seal fuel leak", a => a.FuelSystem.SealLeak()));
+                    break;
+                
+                case ConsoleKey.C:
+                    Execute(
+                        new ActivateSystemCommand("Spoilers", "Toggle spoilers", a => a.WingSystem.ToggleSpoilers()));
+                    break;
+                case ConsoleKey.D1:
+                    Execute(new ActivateSystemCommand("Flaps", "Flaps down",
+                        a => a.WingSystem.SetFlaps(a.WingSystem.FlapsPosition + 0.25))); break;
+                case ConsoleKey.D2:
+                    Execute(new ActivateSystemCommand("Flaps", "Flaps up",
+                        a => a.WingSystem.SetFlaps(a.WingSystem.FlapsPosition - 0.25))); break;
 
                 case ConsoleKey.Z: Execute(new ToggleAutopilotCommand()); break;
 

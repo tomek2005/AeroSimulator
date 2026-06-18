@@ -19,8 +19,7 @@ public class ClimbState : IAircraftState
     public void Update(Aircraft ctx, double deltaT)
     {
         ctx.FlightData.Altitude += (ctx.Config.Aircraft.MaxClimbRateFtMin / 60.0) * deltaT;
-
-        // Osiągnięcie docelowego pułapu przelotowego
+        
         if (ctx.FlightData.Altitude >= ctx.Config.Aircraft.MaxAltitudeFt)
         {
             ctx.TransitionTo(new CruiseState());
@@ -37,9 +36,21 @@ public class ClimbState : IAircraftState
         ctx.TransitionTo(new EmergencyState());
     }
 
-    public void TakeOff(Aircraft ctx) { }
+    public void TakeOff(Aircraft ctx)
+    {
+    }
+
     public void Descend(Aircraft ctx) => ctx.TransitionTo(new DescentState());
-    public void Land(Aircraft ctx) { }
-    public void Abort(Aircraft ctx) { }
-    public void OnExit(Aircraft ctx) { }
+
+    public void Land(Aircraft ctx)
+    {
+    }
+
+    public void Abort(Aircraft ctx)
+    {
+    }
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

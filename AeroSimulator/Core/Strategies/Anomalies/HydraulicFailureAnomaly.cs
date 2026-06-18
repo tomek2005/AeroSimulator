@@ -5,20 +5,18 @@ namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
-/// <summary>
 /// Hydraulic system failure. Pressure drops to zero, locking flaps and — if the
 /// gear was mid-transit — jamming it in a half-retracted position.
 /// Emergency gear extension remains available as the resolution action.
-/// </summary>
 public sealed class HydraulicFailureAnomaly : AbstractAnomaly
 {
     private bool _landingWarningIssued;
 
-    public override string   AnomalyName   => "HYDRAULIC FAILURE";
-    public override string   Description   => "Hydraulic system pressure lost — gear and flaps may be stuck.";
-    public override Severity Level         => Severity.High;
-    public override double   Probability   => 0.0004;
-    public override bool     CanBeResolved => true;
+    public override string AnomalyName => "HYDRAULIC FAILURE";
+    public override string Description => "Hydraulic system pressure lost — gear and flaps may be stuck.";
+    public override Severity Level => Severity.High;
+    public override double Probability => 0.0004;
+    public override bool CanBeResolved => true;
 
     public override string GetWarningMessage() =>
         "!! WARNING: HYDRAULIC FAILURE -- gear/flap control lost !!";
@@ -31,8 +29,7 @@ public sealed class HydraulicFailureAnomaly : AbstractAnomaly
         _landingWarningIssued = false;
 
         bool gearWasMidTransit = ctx.HydraulicSystem.IsGearTransiting;
-
-        // Zmiana: Użycie bezpiecznej enkapsulacji zamiast bezpośredniego ustawiania pola
+        
         ctx.HydraulicSystem.Depressurize();
 
         if (gearWasMidTransit)
@@ -58,7 +55,6 @@ public sealed class HydraulicFailureAnomaly : AbstractAnomaly
 
     protected override bool OnResolve(Aircraft ctx)
     {
-        // System sam czyści flagi zakleszczenia wewnątrz EmergencyGearExtension
         return ctx.HydraulicSystem.EmergencyGearExtension();
     }
 }

@@ -1,5 +1,3 @@
-
-
 namespace AeroSimulator.Core.States;
 
 using System;
@@ -23,7 +21,7 @@ public class TakeOffState : IAircraftState
 
     public void Update(Aircraft ctx, double deltaT)
     {
-        ctx.FlightData.Speed += 25.0 * deltaT; 
+        ctx.FlightData.Speed += 25.0 * deltaT;
 
         if (ctx.FlightData.Speed >= ctx.Config.Aircraft.VRSpeedKts && !_hasRotated)
         {
@@ -36,8 +34,7 @@ public class TakeOffState : IAircraftState
             ctx.FlightData.VerticalSpeed = ctx.Config.Aircraft.MaxClimbRateFtMin;
             ctx.FlightData.Altitude += (ctx.FlightData.VerticalSpeed / 60.0) * deltaT;
         }
-
-        // Auto-przejście do wznoszenia po 1500 ftqqqq
+        
         if (ctx.FlightData.Altitude >= 1500.0)
         {
             ctx.TransitionTo(new ClimbState());
@@ -46,7 +43,6 @@ public class TakeOffState : IAircraftState
 
     public void Abort(Aircraft ctx)
     {
-        // Bezpieczne przerwanie startu tylko poniżej V1
         if (ctx.FlightData.Speed < ctx.Config.Aircraft.V1SpeedKts)
         {
             ctx.FlightData.Throttle = 0.0;
@@ -59,12 +55,26 @@ public class TakeOffState : IAircraftState
         if (ctx.FlightData.Speed > ctx.Config.Aircraft.V1SpeedKts)
             ctx.TransitionTo(new EmergencyState());
         else
-            Abort(ctx); // Poniżej V1 awaryjnie hamujemy
+            Abort(ctx);
     }
 
-    public void TakeOff(Aircraft ctx) { }
-    public void Cruise(Aircraft ctx) { }
-    public void Descend(Aircraft ctx) { }
-    public void Land(Aircraft ctx) { }
-    public void OnExit(Aircraft ctx) { }
+    public void TakeOff(Aircraft ctx)
+    {
+    }
+
+    public void Cruise(Aircraft ctx)
+    {
+    }
+
+    public void Descend(Aircraft ctx)
+    {
+    }
+
+    public void Land(Aircraft ctx)
+    {
+    }
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

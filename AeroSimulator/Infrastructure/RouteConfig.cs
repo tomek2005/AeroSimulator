@@ -1,11 +1,9 @@
 namespace AeroSimulator.Infrastructure;
 
-/// <summary>
-/// Reprezentuje trasę przelotu wybraną przez użytkownika.
-/// </summary>
+// Reprezentuje trasę przelotu wybraną przez użytkownika.
 public record RouteConfig(
-    string Name, 
-    string Description, 
-    double DistanceKm, 
+    string Name,
+    string Description,
+    double DistanceKm,
     string EstimatedTime
 );

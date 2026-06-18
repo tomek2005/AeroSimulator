@@ -6,7 +6,7 @@ public class ElectricalSystem : IAircraftSystem
     public double SecondaryBusVoltage { get; private set; } = 28.0;
     public bool IsDeIcingActive { get; private set; }
     public bool IsOnBackupBattery { get; private set; }
-    
+
     public bool IsOffline => MainBusVoltage <= 0 && SecondaryBusVoltage <= 0 && !IsOnBackupBattery;
 
     public void CutMainBus()
@@ -25,9 +25,10 @@ public class ElectricalSystem : IAircraftSystem
         if (!IsOnBackupBattery)
         {
             IsOnBackupBattery = true;
-            MainBusVoltage = 24.0; // Napięcie z baterii awaryjnej
+            MainBusVoltage = 24.0;
             return true;
         }
+
         return false;
     }
 
@@ -38,6 +39,7 @@ public class ElectricalSystem : IAircraftSystem
             IsDeIcingActive = true;
             return true;
         }
+
         return false;
     }
 

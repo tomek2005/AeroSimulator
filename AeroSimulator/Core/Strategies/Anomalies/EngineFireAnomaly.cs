@@ -8,26 +8,26 @@ using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
 public sealed class EngineFireAnomaly : AbstractAnomaly
 {
-    private const double HealthDecayPerSec     = 0.02; 
-    private const double WingSpreadChance      = 0.30;
+    private const double HealthDecayPerSec = 0.02;
+    private const double WingSpreadChance = 0.30;
     private const double WingSpreadIntervalSec = 10.0;
-    private const double TempSensorNoise       = 0.20;
+    private const double TempSensorNoise = 0.20;
 
     private readonly int _engineIndex;
-    private double       _timeSinceSpreadRoll;
-    private bool         _wingFireTriggered;
-    private bool         _exploded;
+    private double _timeSinceSpreadRoll;
+    private bool _wingFireTriggered;
+    private bool _exploded;
 
     public EngineFireAnomaly(int engineIndex = 0)
     {
         _engineIndex = engineIndex;
     }
 
-    public override string   AnomalyName   => $"ENGINE {_engineIndex + 1} FIRE";
-    public override string   Description   => $"Engine {_engineIndex + 1} is on fire — suppression required immediately.";
-    public override Severity Level         => Severity.Critical;
-    public override double   Probability   => 0.0;
-    public override bool     CanBeResolved => true;
+    public override string AnomalyName => $"ENGINE {_engineIndex + 1} FIRE";
+    public override string Description => $"Engine {_engineIndex + 1} is on fire — suppression required immediately.";
+    public override Severity Level => Severity.Critical;
+    public override double Probability => 0.0;
+    public override bool CanBeResolved => true;
     public int EngineIndex => _engineIndex;
 
     public override string GetWarningMessage() =>
@@ -39,8 +39,8 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
         _timeSinceSpreadRoll = 0;
-        _wingFireTriggered   = false;
-        _exploded            = false;
+        _wingFireTriggered = false;
+        _exploded = false;
 
         ctx.GetEngine(_engineIndex).StartFire();
 
@@ -54,7 +54,6 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
 
         var engine = ctx.GetEngine(_engineIndex);
         
-        // Zmiana: Użycie metody intencjonalnej zamiast bezpośredniego odejmowania od pola
         engine.ApplyDamage(HealthDecayPerSec * deltaT);
 
         _timeSinceSpreadRoll += deltaT;
@@ -65,10 +64,9 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
             {
                 _wingFireTriggered = true;
                 
-                // Zmiana: Poprawny format wysyłania zdarzenia kaskady przez EventBus
                 ctx.Publish(new SystemFailureEvent(
-                    "EngineFire", 
-                    1.0, 
+                    "EngineFire",
+                    1.0,
                     $"CASCADE:WING_FIRE:{_engineIndex}"));
             }
         }
@@ -93,6 +91,7 @@ public sealed class EngineFireAnomaly : AbstractAnomaly
             var tempSensor = ctx.Sensors.EngineTemps[_engineIndex];
             tempSensor.ClearNoise();
         }
+
         return success;
     }
 }

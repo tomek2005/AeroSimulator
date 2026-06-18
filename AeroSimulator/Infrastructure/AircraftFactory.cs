@@ -4,19 +4,14 @@ namespace AeroSimulator.Infrastructure;
 
 using AeroSimulator.Core.Aircraft;
 
-/// <summary>
-/// Wzorzec Factory (Fabryka). Zgodnie z założeniami z README, buduje 
-/// skomplikowany obiekt modelu statku powietrznego na podstawie wybranej konfiguracji.
-/// </summary>
+// Wzorzec Factory (Fabryka), buduje skomplikowany obiekt modelu statku powietrznego na podstawie wybranej konfiguracji.
 public static class AircraftFactory
 {
     public static Aircraft Create(SimulationConfig config)
     {
         if (config == null) throw new ArgumentNullException(nameof(config));
         if (config.Aircraft == null) throw new ArgumentNullException(nameof(config.Aircraft));
-
-        // POPRAWKA: Przekazujemy liczbę silników do nowego konstruktora FlightData!
-        // Dzięki temu klasa sama inicjalizuje tablice EngineRPMs i EngineTempsC
+        
         var initialData = new FlightData(config.Aircraft.EngineCount)
         {
             Altitude = 0.0,
@@ -27,11 +22,9 @@ public static class AircraftFactory
             TargetAltitude = Math.Min(config.Aircraft.MaxAltitudeFt, 35000.0),
             Config = config.Aircraft
         };
-
-        // Budowa systemu czujników
+        
         var sensorSystem = new SensorSystem(config.Aircraft.EngineCount);
-
-        // Powołanie do życia głównego Modelu
+        
         var aircraft = new Aircraft(config, initialData, sensorSystem);
 
         return aircraft;
