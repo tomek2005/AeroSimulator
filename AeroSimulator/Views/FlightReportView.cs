@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using AeroSimulator.Core.Aircraft;
 using AeroSimulator.Core.Aircraft.Enums;
 using AeroSimulator.Core.Aircraft.Sensors;
@@ -46,9 +48,18 @@ public static class FlightReportView
         Console.WriteLine("--------------------------------------------------");
         if (isGameOver)
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("STATUS LOTU: KATASTROFA (GAME OVER)");
-            Console.WriteLine($"Powód:       {gameOverReason}");
+            if (gameOverReason.Contains("POZA LOTNISKIEM"))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("STATUS LOTU: LĄDOWANIE AWARYJNE");
+                Console.WriteLine($"Wynik:       {gameOverReason}");
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("STATUS LOTU: KATASTROFA (GAME OVER)");
+                Console.WriteLine($"Powód:       {gameOverReason}");
+            }
         }
         else if (finalStateName == "GROUND" && dataSnapshot.FlightTime.TotalSeconds > 10)
         {
