@@ -19,5 +19,8 @@ public class ActivateSystemCommand : IFlightCommand
     public string Details => _details;
 
     public void Execute(AircraftModel aircraft) => _action(aircraft);
-    public void Undo(AircraftModel aircraft) { }
+
+    public void Undo(AircraftModel aircraft)
+    {
+    }
 }

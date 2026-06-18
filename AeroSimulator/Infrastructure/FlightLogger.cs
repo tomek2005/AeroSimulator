@@ -16,7 +16,6 @@ public class FlightLogger
 
     private void InitializeFile()
     {
-        // Tworzy nagłówki w pliku CSV przy uruchomieniu
         string headers = "Timestamp,Altitude,Speed,VerticalSpeed,Heading,Throttle,EngineRPMs,FuelLevelKg";
         File.WriteAllText(_filePath, headers + Environment.NewLine);
     }
@@ -25,7 +24,6 @@ public class FlightLogger
     {
         try
         {
-            // Korzystamy z Twojego dedykowanego rekordu snapshotu!
             var snapshot = new FlightDataSnapshot(flightData);
             File.AppendAllText(_filePath, snapshot.ToCsvRow() + Environment.NewLine);
         }

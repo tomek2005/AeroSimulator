@@ -1,6 +1,6 @@
 namespace AeroSimulator.Core.Aircraft.Enums;
 
-/// <summary>Player-triggered actions mapped from keyboard input.</summary>
+// Player-triggered actions mapped from keyboard input.
 public enum PlayerAction
 {
     IncreaseThrottle,

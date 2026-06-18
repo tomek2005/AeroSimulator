@@ -8,5 +8,8 @@ public class GoAroundCommand : IFlightCommand
     public string Details => "Abort current phase / go around";
 
     public void Execute(AircraftModel aircraft) => aircraft.Abort();
-    public void Undo(AircraftModel aircraft) { }
+
+    public void Undo(AircraftModel aircraft)
+    {
+    }
 }

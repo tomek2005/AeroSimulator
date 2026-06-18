@@ -13,21 +13,17 @@ public class CruiseState : IAircraftState
 
     public void OnEnter(Aircraft ctx)
     {
-        // Załączenie autopilota (Hold Altitude & Heading)
     }
 
     public void Update(Aircraft ctx, double deltaT)
     {
-        // Zużywanie paliwa w locie przelotowym
         ctx.FlightData.FuelLevelKg -= (ctx.Config.Aircraft.FuelBurnKgPerH / 3600.0) * deltaT;
-
-        // Aplikowanie asymetrycznego oporu ze wspólnego DamageModel
+        
         if (ctx.DamageModel.AsymmetricDragActive)
         {
             ctx.FlightData.ApplyAsymmetricDrift(ctx.DamageModel.DriftDegPerSec, deltaT);
         }
-
-        // Sprawdzenie krytycznego poziomu paliwa (< 5%) -> Automatyczny Emergency
+        
         double fuelPercent = (ctx.FlightData.FuelLevelKg / ctx.Config.Aircraft.MaxFuelKg) * 100.0;
         if (fuelPercent < 5.0)
         {
@@ -45,9 +41,21 @@ public class CruiseState : IAircraftState
         ctx.TransitionTo(new EmergencyState());
     }
 
-    public void TakeOff(Aircraft ctx) { }
-    public void Cruise(Aircraft ctx) { }
+    public void TakeOff(Aircraft ctx)
+    {
+    }
+
+    public void Cruise(Aircraft ctx)
+    {
+    }
+
     public void Land(Aircraft ctx) => Descend(ctx);
-    public void Abort(Aircraft ctx) { }
-    public void OnExit(Aircraft ctx) { }
+
+    public void Abort(Aircraft ctx)
+    {
+    }
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

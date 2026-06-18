@@ -6,12 +6,12 @@ namespace AeroSimulator.Views.Components;
 public class ConsoleDashboardView : IScreen
 {
     public string Title => "PRIMARY FLIGHT DISPLAY (PFD)";
-    
+
     private readonly Aircraft _aircraft;
     private readonly IWidget _flightDataWidget;
     private readonly IWidget _systemsWidget;
     private readonly IWidget _sensorsWidget;
-    private readonly IWidget _legendWidget; 
+    private readonly IWidget _legendWidget;
     private readonly IWidget _alertWidget;
 
     public ConsoleDashboardView(Aircraft aircraft)
@@ -20,7 +20,7 @@ public class ConsoleDashboardView : IScreen
         _flightDataWidget = new FlightDataWidget(aircraft);
         _systemsWidget = new SystemsPanelWidget(aircraft);
         _sensorsWidget = new SensorsPanelWidget(aircraft);
-        _legendWidget = new LegendWidget(); 
+        _legendWidget = new LegendWidget();
         _alertWidget = new AlertWidget();
     }
 
@@ -28,24 +28,25 @@ public class ConsoleDashboardView : IScreen
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("================================================================================");
-        Console.WriteLine($" {Title.PadRight(30)} | MODE: {_aircraft.CurrentState.StateName.PadRight(15)} | PRESS 'V' TO CAM VIEW ");
+        Console.WriteLine(
+            $" {Title.PadRight(30)} | MODE: {_aircraft.CurrentState.StateName.PadRight(15)} | PRESS 'V' TO CAM VIEW ");
         Console.WriteLine("================================================================================");
         Console.ResetColor();
     }
 
     public void RenderMainContent()
     {
-        _flightDataWidget.Render();  
+        _flightDataWidget.Render();
         _systemsWidget.Render();
         _sensorsWidget.Render();
-        _alertWidget.Render();       
+        _alertWidget.Render();
     }
 
     public void RenderFooter()
     {
-        _legendWidget.Render(); 
+        _legendWidget.Render();
     }
-    
+
     public void RenderAll()
     {
         ClearViewport();
@@ -68,5 +69,7 @@ public class ConsoleDashboardView : IScreen
         }
     }
 
-    public void HandleInput(ConsoleKey key) { }
+    public void HandleInput(ConsoleKey key)
+    {
+    }
 }

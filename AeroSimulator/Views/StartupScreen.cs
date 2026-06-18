@@ -11,20 +11,19 @@ public class StartupScreen : IScreen
     private readonly IReadOnlyList<AircraftConfig> _availableAircrafts;
     private readonly IReadOnlyList<RouteConfig> _availableRoutes;
 
-    private int _currentSelection = 0; 
+    private int _currentSelection = 0;
     private int _aircraftIndex = 0;
     private int _routeIndex = 0;
     private Difficulty _difficulty = Difficulty.Normal;
     private bool _realTime = true;
-    
+
     private bool _menuLoopActive = true;
 
     private readonly MenuHeaderWidget _headerWidget;
     private readonly SettingsSummaryWidget _summaryWidget;
-
-    // ZMIANA: Mamy teraz TYLKO JEDNĄ właściwość wyjściową dla całej aplikacji
-    public SimulationConfig FinalConfig { get; private set; }
     
+    public SimulationConfig FinalConfig { get; private set; }
+
     public bool IsConfigurationFinished { get; private set; }
 
     public StartupScreen(IReadOnlyList<AircraftConfig> aircrafts, IReadOnlyList<RouteConfig> routes)
@@ -32,17 +31,15 @@ public class StartupScreen : IScreen
         _availableAircrafts = aircrafts ?? throw new ArgumentNullException(nameof(aircrafts));
         _availableRoutes = routes ?? throw new ArgumentNullException(nameof(routes));
         
-        // ZMIANA: Inicjalizacja domyślnego SimulationConfig przy starcie ekranu
         FinalConfig = new SimulationConfig(
-            _difficulty, 
-            _availableAircrafts[0], 
-            _availableRoutes[0], 
+            _difficulty,
+            _availableAircrafts[0],
+            _availableRoutes[0],
             RealTime: _realTime
         );
 
         _headerWidget = new MenuHeaderWidget(Title);
-        // ZMIANA: Przekazujemy FinalConfig do widżetu
-        _summaryWidget = new SettingsSummaryWidget(() => FinalConfig); 
+        _summaryWidget = new SettingsSummaryWidget(() => FinalConfig);
     }
 
     public async Task RunScreenLifecycleAsync()
@@ -56,12 +53,13 @@ public class StartupScreen : IScreen
             {
                 var keyInfo = await Task.Run(() => Console.ReadKey(true));
                 HandleInput(keyInfo.Key);
-                
+
                 if (_menuLoopActive)
                 {
                     RenderAll();
                 }
             }
+
             await Task.Delay(30);
         }
     }
@@ -69,9 +67,9 @@ public class StartupScreen : IScreen
     public void RenderAll()
     {
         Console.Clear();
-        RenderHeader();       
-        RenderMainContent();  
-        RenderFooter();       
+        RenderHeader();
+        RenderMainContent();
+        RenderFooter();
     }
 
     public void RenderHeader()
@@ -81,7 +79,8 @@ public class StartupScreen : IScreen
 
     public void RenderMainContent()
     {
-        var aircraftStr = $"{_availableAircrafts[_aircraftIndex].DisplayName} ({_availableAircrafts[_aircraftIndex].TailNumber})";
+        var aircraftStr =
+            $"{_availableAircrafts[_aircraftIndex].DisplayName} ({_availableAircrafts[_aircraftIndex].TailNumber})";
         var routeStr = $"{_availableRoutes[_routeIndex].Name} - {_availableRoutes[_routeIndex].DistanceKm}km";
 
         RenderOptionLine("1. Wybór Typu Samolotu:", aircraftStr, _currentSelection == 0);
@@ -102,7 +101,7 @@ public class StartupScreen : IScreen
         }
 
         Console.WriteLine("\n" + new string('-', 68));
-        _summaryWidget.Render();    
+        _summaryWidget.Render();
     }
 
     public void RenderFooter()
@@ -114,10 +113,10 @@ public class StartupScreen : IScreen
         Console.WriteLine(" [↑ / ↓]   – Nawigacja po menu (Opcje 1-4 oraz przycisk Start)");
         Console.WriteLine(" [← / →]   – Zmiana parametrów wybranej opcji");
         Console.WriteLine(" [ENTER]   – Zatwierdzenie wyboru");
-        
+
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine(" ℹ️ Dolny panel parametrów aktualizuje się automatycznie dla wybranej trudności.");
-        
+
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.WriteLine(new string('=', 68));
         Console.ResetColor();
@@ -143,18 +142,17 @@ public class StartupScreen : IScreen
                 if (_currentSelection == 4)
                 {
                     _menuLoopActive = false;
-                    IsConfigurationFinished = true; 
+                    IsConfigurationFinished = true;
                 }
+
                 break;
         }
-
-        // ZMIANA: Tworzymy tutaj świeży, niezmienny obiekt SimulationConfig z nowymi wartościami
+        
         FinalConfig = new SimulationConfig(
             Difficulty: _difficulty,
             Aircraft: _availableAircrafts[_aircraftIndex],
             Route: _availableRoutes[_routeIndex],
             RealTime: _realTime
-            // Zauważ: TimeStepDeltaT i LogFilePath biorą się same z domyślnych wartości rekordu!
         );
     }
 

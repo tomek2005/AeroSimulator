@@ -1,6 +1,7 @@
 namespace AeroSimulator.Core.Strategies.Weather;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
+
 public class ClearSkiesStrategy : IWeatherStrategy
 {
     public string Name => "CLEAR SKIES";

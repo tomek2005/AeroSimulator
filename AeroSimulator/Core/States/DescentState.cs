@@ -28,14 +28,24 @@ public class DescentState : IAircraftState
     }
 
     public void Land(Aircraft ctx) => ctx.TransitionTo(new LandingState());
-    
-    public void Abort(Aircraft ctx) => ctx.TransitionTo(new ClimbState()); // Go-Around
-    
-    public void HandleEmergency(Aircraft ctx) => ctx.TransitionTo(new EmergencyState());
 
-    // Puste implementacje wymagane przez interfejs
-    public void TakeOff(Aircraft ctx) { }
-    public void Cruise(Aircraft ctx) { }
-    public void Descend(Aircraft ctx) { } // Jesteśmy już w zniżaniu
-    public void OnExit(Aircraft ctx) { }
+    public void Abort(Aircraft ctx) => ctx.TransitionTo(new ClimbState());
+
+    public void HandleEmergency(Aircraft ctx) => ctx.TransitionTo(new EmergencyState());
+    
+    public void TakeOff(Aircraft ctx)
+    {
+    }
+
+    public void Cruise(Aircraft ctx)
+    {
+    }
+
+    public void Descend(Aircraft ctx)
+    {
+    } 
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

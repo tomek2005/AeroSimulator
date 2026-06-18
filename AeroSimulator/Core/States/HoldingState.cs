@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using AeroSimulator.Core.Aircraft;
 
-
 public class HoldingState : IAircraftState
 {
     public string StateName => "HOLDING";
@@ -14,14 +13,12 @@ public class HoldingState : IAircraftState
 
     public void OnEnter(Aircraft ctx)
     {
-        // Wejście w oczekiwanie (np. narzucenie kąta przechylenia roll = 25 stopni)
     }
 
     public void Update(Aircraft ctx, double deltaT)
     {
         ctx.FlightData.FuelLevelKg -= (ctx.Config.Aircraft.FuelBurnKgPerH / 3600.0) * deltaT;
-
-        // Jeśli paliwo spadnie do stanu krytycznego, holding jest przerywany automatycznie
+        
         double fuelPercent = (ctx.FlightData.FuelLevelKg / ctx.Config.Aircraft.MaxFuelKg) * 100.0;
         if (fuelPercent < 5.0)
         {
@@ -39,9 +36,23 @@ public class HoldingState : IAircraftState
         ctx.TransitionTo(new EmergencyState());
     }
 
-    public void TakeOff(Aircraft ctx) { }
-    public void Cruise(Aircraft ctx) { }
-    public void Descend(Aircraft ctx) { }
-    public void Abort(Aircraft ctx) { }
-    public void OnExit(Aircraft ctx) { }
+    public void TakeOff(Aircraft ctx)
+    {
+    }
+
+    public void Cruise(Aircraft ctx)
+    {
+    }
+
+    public void Descend(Aircraft ctx)
+    {
+    }
+
+    public void Abort(Aircraft ctx)
+    {
+    }
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

@@ -36,7 +36,6 @@ public class HydraulicSystem : IAircraftSystem
 
     public bool EmergencyGearExtension()
     {
-        // Grawitacyjne wypuszczenie podwozia działa nawet bez ciśnienia
         GearJammed = false;
         IsGearTransiting = false;
         IsGearExtended = true;

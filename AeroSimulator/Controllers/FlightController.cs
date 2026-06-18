@@ -29,8 +29,7 @@ public class FlightController
     private bool _hasBeenAirborne;
     private bool _landedSafely;
     private bool _autoLandingActive;
-
-    // --- NOWE ZMIENNE DO OBSŁUGI PAUZY ---
+    
     private bool _isPaused = false;
     public bool IsPaused => _isPaused;
 
@@ -40,8 +39,8 @@ public class FlightController
         _dashboardView = dashboard;
         _cameraView = camera;
         _config = config;
-        
-        _activeView = _dashboardView; 
+
+        _activeView = _dashboardView;
         _anomalyEngine = new AnomalyEngine(aircraft);
         _weatherStrategy = PickWeatherForDifficulty();
         _weatherChangeCountdownSec = RollWeatherDuration();
@@ -51,11 +50,10 @@ public class FlightController
 
     public void ToggleView()
     {
-        Console.Clear(); 
+        Console.Clear();
         _activeView = _activeView == _dashboardView ? _cameraView : _dashboardView;
     }
-
-    // --- NOWA METODA DO PAUZOWANIA ---
+    
     public void TogglePause()
     {
         _isPaused = !_isPaused;
@@ -63,19 +61,16 @@ public class FlightController
 
     public async Task StartSimulationLoopAsync()
     {
-        double deltaT = _config.TimeStepDeltaT; // Domyślnie 0.1s
-        int delayMs = (int)(deltaT * 1000);     // Oczekiwany czas klatki (100ms)
+        double deltaT = _config.TimeStepDeltaT;
+        int delayMs = (int)(deltaT * 1000);
         int tickCounter = 0;
-
-        // Pętla kręci się dopóki gracz nie wyjdzie (isRunning) ORAZ samolot nie ulegnie zniszczeniu (!IsGameOver)
+        
         while (_isRunning && !_aircraft.DamageModel.IsGameOver)
         {
             var stopwatch = Stopwatch.StartNew();
             
-            // 1. ZAWSZE Obsługa wejścia gracza (nawet na pauzie!)
             _inputHandler.ProcessInput();
-
-            // 2. LOGIKA GRY ORAZ FIZYKA (Tylko gdy NIE ma pauzy)
+            
             if (!_isPaused)
             {
                 double verticalSpeedBeforeUpdate = _aircraft.FlightData.VerticalSpeed;
@@ -84,7 +79,7 @@ public class FlightController
                 double rollBeforeUpdate = _aircraft.FlightData.RollAngleDeg;
                 bool gearExtendedBeforeUpdate = _aircraft.HydraulicSystem.IsGearExtended;
 
-                // Aktualizacja systemów i fizyki
+                // Systems and physic 
                 UpdateWeather(deltaT);
                 EnforceFlightEnvelope();
                 _aircraft.Update(deltaT);
@@ -108,32 +103,29 @@ public class FlightController
                         pitchBeforeUpdate,
                         rollBeforeUpdate);
                 }
-
-                // 4. Generowanie telemetrii do Czarnej Skrzynki (Co 1 sekundę)
+                
                 tickCounter++;
                 if (tickCounter >= 10)
                 {
                     var fd = _aircraft.FlightData;
-                    _aircraft.Publish(new TelemetryTickEvent($"ALT: {fd.Altitude:0}ft | SPD: {fd.Speed:0}kts | HDG: {fd.Heading:0}° | PITCH: {fd.PitchAngleDeg:F1}°"));
+                    _aircraft.Publish(new TelemetryTickEvent(
+                        $"ALT: {fd.Altitude:0}ft | SPD: {fd.Speed:0}kts | HDG: {fd.Heading:0}° | PITCH: {fd.PitchAngleDeg:F1}°"));
                     tickCounter = 0;
                 }
             }
-
-            // 5. ZAWSZE Renderowanie aktywnego widoku na ekran
-            Console.SetCursorPosition(0, 0); 
+            
+            Console.SetCursorPosition(0, 0);
             _activeView.RenderAll();
-
-            // Dodatkowy interfejs podczas pauzy
+            
             if (_isPaused)
             {
-                Console.SetCursorPosition(38, 15); // Wyśrodkowanie na standardowym ekranie
+                Console.SetCursorPosition(38, 15);
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.BackgroundColor = ConsoleColor.DarkBlue;
                 Console.Write("  [ SIMULATION PAUSED ]  ");
                 Console.ResetColor();
             }
-
-            // 6. Stabilizacja czasu klatki (10Hz)
+            
             stopwatch.Stop();
             int timeToWait = delayMs - (int)stopwatch.ElapsedMilliseconds;
             if (timeToWait > 0)
@@ -142,13 +134,12 @@ public class FlightController
             }
         }
         
-        // --- PO ZAKOŃCZENIU PĘTLI ---
         if (_aircraft.DamageModel.IsGameOver)
         {
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"\n\n [!] SYSTEM HALTED: {_aircraft.DamageModel.GameOverReason}");
             Console.ResetColor();
-            await Task.Delay(2500); 
+            await Task.Delay(2500);
         }
     }
 
@@ -210,7 +201,8 @@ public class FlightController
 
     private double RollWeatherDuration() => 35.0 + _rng.NextDouble() * 55.0;
 
-    private void EvaluateTouchdown(bool gearExtended, double speedKts, double verticalSpeedFtMin, double pitchDeg, double rollDeg)
+    private void EvaluateTouchdown(bool gearExtended, double speedKts, double verticalSpeedFtMin, double pitchDeg,
+        double rollDeg)
     {
         double descentRate = Math.Abs(Math.Min(verticalSpeedFtMin, 0.0));
         double absPitch = Math.Abs(pitchDeg);
@@ -241,7 +233,8 @@ public class FlightController
         }
 
         string gearText = gearExtended ? "gear-down" : "gear-up";
-        string reason = $"{gearText} touchdown unstable: speed {speedKts:F0}/{maxSpeed:F0} kt, descent {descentRate:F0}/{maxDescentRate:F0} ft/min, pitch {absPitch:F1}/{maxPitch:F1} deg, roll {absRoll:F1}/{maxRoll:F1} deg";
+        string reason =
+            $"{gearText} touchdown unstable: speed {speedKts:F0}/{maxSpeed:F0} kt, descent {descentRate:F0}/{maxDescentRate:F0} ft/min, pitch {absPitch:F1}/{maxPitch:F1} deg, roll {absRoll:F1}/{maxRoll:F1} deg";
         _aircraft.Publish(new SystemFailureEvent("HULL", 0.0, $"CRASH LANDING - {reason}"));
         _aircraft.DamageModel.TriggerGameOver(reason);
         _aircraft.Publish(new GameOverEvent(reason));

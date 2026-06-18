@@ -8,23 +8,23 @@ using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
 public sealed class TurbulenceAnomaly : AbstractAnomaly
 {
-    private const double AltOscillationFt    = 200;
+    private const double AltOscillationFt = 200;
     private const double SpeedOscillationKts = 15;
-    private const double GForceOscillation   = 0.30;
-    private const double SensorNoiseAmount   = 0.15;
-    private const double MinDurationSec      = 180;
-    private const double MaxDurationSec      = 480;
+    private const double GForceOscillation = 0.30;
+    private const double SensorNoiseAmount = 0.15;
+    private const double MinDurationSec = 180;
+    private const double MaxDurationSec = 480;
 
     private Severity _turbulenceSeverity;
-    private double   _totalDuration;
-    private bool     _sensorNoiseApplied;
-    private bool     _criticalSensorDamaged;
+    private double _totalDuration;
+    private bool _sensorNoiseApplied;
+    private bool _criticalSensorDamaged;
 
-    public override string   AnomalyName   => "TURBULENCE";
-    public override string   Description   => "Severe atmospheric turbulence — sensor readings may be unreliable.";
-    public override Severity Level         => _turbulenceSeverity;
-    public override double   Probability   => 0.0015;
-    public override bool     CanBeResolved => true;
+    public override string AnomalyName => "TURBULENCE";
+    public override string Description => "Severe atmospheric turbulence — sensor readings may be unreliable.";
+    public override Severity Level => _turbulenceSeverity;
+    public override double Probability => 0.0015;
+    public override bool CanBeResolved => true;
 
     public override string GetWarningMessage() =>
         $"!! WARNING: {_turbulenceSeverity.ToString().ToUpper()} TURBULENCE -- sensor noise active !!";
@@ -34,9 +34,9 @@ public sealed class TurbulenceAnomaly : AbstractAnomaly
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
-        _turbulenceSeverity    = (Severity)_rng.Next(1, 5);
-        _totalDuration         = MinDurationSec + _rng.NextDouble() * (MaxDurationSec - MinDurationSec);
-        _sensorNoiseApplied    = false;
+        _turbulenceSeverity = (Severity)_rng.Next(1, 5);
+        _totalDuration = MinDurationSec + _rng.NextDouble() * (MaxDurationSec - MinDurationSec);
+        _sensorNoiseApplied = false;
         _criticalSensorDamaged = false;
 
         if (_turbulenceSeverity >= Severity.Medium)
@@ -54,12 +54,12 @@ public sealed class TurbulenceAnomaly : AbstractAnomaly
 
     protected override void OnUpdate(Aircraft ctx, FlightData data, double deltaT)
     {
-        data.Altitude      += (_rng.NextDouble() - 0.5) * 2 * AltOscillationFt    * deltaT;
-        data.Speed         += (_rng.NextDouble() - 0.5) * 2 * SpeedOscillationKts * deltaT;
-        data.GForce        += (_rng.NextDouble() - 0.5) * 2 * GForceOscillation   * deltaT;
-        data.GForce         = Math.Clamp(data.GForce, 0.2, 4.0);
+        data.Altitude += (_rng.NextDouble() - 0.5) * 2 * AltOscillationFt * deltaT;
+        data.Speed += (_rng.NextDouble() - 0.5) * 2 * SpeedOscillationKts * deltaT;
+        data.GForce += (_rng.NextDouble() - 0.5) * 2 * GForceOscillation * deltaT;
+        data.GForce = Math.Clamp(data.GForce, 0.2, 4.0);
         data.PitchAngleDeg += (_rng.NextDouble() - 0.5) * 4 * deltaT;
-        data.RollAngleDeg  += (_rng.NextDouble() - 0.5) * 6 * deltaT;
+        data.RollAngleDeg += (_rng.NextDouble() - 0.5) * 6 * deltaT;
 
         if (_activeDuration >= _totalDuration)
         {
@@ -74,6 +74,7 @@ public sealed class TurbulenceAnomaly : AbstractAnomaly
             ctx.Sensors.ClearNoiseFromAll();
             _sensorNoiseApplied = false;
         }
+
         return true;
     }
 }

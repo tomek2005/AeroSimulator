@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using AeroSimulator.Core.Aircraft;
 
-
 public class LandingState : IAircraftState
 {
     public string StateName => "LANDING";
@@ -22,11 +21,11 @@ public class LandingState : IAircraftState
         double descentRateFtMin = ctx.HydraulicSystem.IsGearExtended ? 520.0 : 220.0;
         ctx.FlightData.VerticalSpeed = -descentRateFtMin;
         ctx.FlightData.Altitude -= (descentRateFtMin / 60.0) * deltaT;
-        ctx.FlightData.Speed = Math.Max(0.0, ctx.FlightData.Speed - (ctx.HydraulicSystem.IsGearExtended ? 5.0 : 8.0) * deltaT);
+        ctx.FlightData.Speed = Math.Max(0.0,
+            ctx.FlightData.Speed - (ctx.HydraulicSystem.IsGearExtended ? 5.0 : 8.0) * deltaT);
 
         if (ctx.DamageModel.AsymmetricDragActive)
         {
-            // Przy lądowaniu znoszenie jest bardziej odczuwalne
             ctx.FlightData.ApplyAsymmetricDrift(ctx.DamageModel.DriftDegPerSec * 1.5, deltaT);
         }
 
@@ -46,9 +45,23 @@ public class LandingState : IAircraftState
 
     public void HandleEmergency(Aircraft ctx) => ctx.TransitionTo(new EmergencyState());
 
-    public void TakeOff(Aircraft ctx) { }
-    public void Cruise(Aircraft ctx) { }
-    public void Descend(Aircraft ctx) { }
-    public void Land(Aircraft ctx) { }
-    public void OnExit(Aircraft ctx) { }
+    public void TakeOff(Aircraft ctx)
+    {
+    }
+
+    public void Cruise(Aircraft ctx)
+    {
+    }
+
+    public void Descend(Aircraft ctx)
+    {
+    }
+
+    public void Land(Aircraft ctx)
+    {
+    }
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

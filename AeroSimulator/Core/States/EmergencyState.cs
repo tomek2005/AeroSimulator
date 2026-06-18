@@ -15,14 +15,12 @@ public class EmergencyState : IAircraftState
 
     public void OnEnter(Aircraft ctx)
     {
-        // Prawdziwe wysłanie sygnału Mayday przez szynę zdarzeń! (Czarna skrzynka to zapisze)
         ctx.Publish(new MaydayEvent(EmergencyType.General, "Crew", "MAYDAY MAYDAY MAYDAY — Emergency state declared."));
         ctx.PublishAlert("MAYDAY, MAYDAY, MAYDAY! Emergency state declared.", Severity.Critical);
     }
 
     public void Update(Aircraft ctx, double deltaT)
     {
-        // Jeżeli doszło do eksplozji lub skrzydło niemal odpadło -> eskalacja do katastrofalnego CriticalState
         if (ctx.DamageModel.IsExploded || ctx.DamageModel.WingHealth < 0.25)
         {
             HandleEmergency(ctx);
@@ -31,7 +29,6 @@ public class EmergencyState : IAircraftState
 
     public void Land(Aircraft ctx)
     {
-        // Przymusowe, natychmiastowe podejście awaryjne do najbliższego lotniska
         ctx.TransitionTo(new LandingState());
     }
 
@@ -40,9 +37,23 @@ public class EmergencyState : IAircraftState
         ctx.TransitionTo(new CriticalState());
     }
 
-    public void TakeOff(Aircraft ctx) { }
-    public void Cruise(Aircraft ctx) { }
-    public void Descend(Aircraft ctx) { }
-    public void Abort(Aircraft ctx) { }
-    public void OnExit(Aircraft ctx) { }
+    public void TakeOff(Aircraft ctx)
+    {
+    }
+
+    public void Cruise(Aircraft ctx)
+    {
+    }
+
+    public void Descend(Aircraft ctx)
+    {
+    }
+
+    public void Abort(Aircraft ctx)
+    {
+    }
+
+    public void OnExit(Aircraft ctx)
+    {
+    }
 }

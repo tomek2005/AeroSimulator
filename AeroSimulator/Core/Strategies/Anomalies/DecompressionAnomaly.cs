@@ -5,26 +5,25 @@ namespace AeroSimulator.Core.Strategies.Anomalies;
 
 using Aircraft = AeroSimulator.Core.Aircraft.Aircraft;
 
-/// <summary>
-/// Rapid explosive decompression. Only valid above 25 000 ft. Forces an
-/// immediate emergency descent to 10 000 ft. Altitude and airspeed sensors
-/// get heavy noise. Failure to descend within 60 seconds → pilot incapacitation
-/// → GAME OVER.
-/// </summary>
+
+// Rapid explosive decompression. Only valid above 25 000 ft. Forces an
+// immediate emergency descent to 10 000 ft. Altitude and airspeed sensors
+// get heavy noise. Failure to descend within 60 seconds → pilot incapacitation
+// → GAME OVER.
 public sealed class DecompressionAnomaly : AbstractAnomaly
 {
-    private const double MinAltitudeFt         = 25_000;
-    private const double SafeAltitudeFt        = 10_000;
-    private const double PressureNoiseBoost    = 0.30;
+    private const double MinAltitudeFt = 25_000;
+    private const double SafeAltitudeFt = 10_000;
+    private const double PressureNoiseBoost = 0.30;
     private const double IncapacitationTimeSec = 60.0;
 
     private bool _incapacitated;
 
-    public override string   AnomalyName   => "DECOMPRESSION";
-    public override string   Description   => "Explosive decompression — emergency descent to 10 000 ft required.";
-    public override Severity Level         => Severity.Critical;
-    public override double   Probability   => 0.0003;
-    public override bool     CanBeResolved => false;
+    public override string AnomalyName => "DECOMPRESSION";
+    public override string Description => "Explosive decompression — emergency descent to 10 000 ft required.";
+    public override Severity Level => Severity.Critical;
+    public override double Probability => 0.0003;
+    public override bool CanBeResolved => false;
 
     public override string GetWarningMessage() =>
         "!! MAYDAY: DECOMPRESSION -- DESCEND IMMEDIATELY TO 10 000 FT !!";
@@ -34,7 +33,11 @@ public sealed class DecompressionAnomaly : AbstractAnomaly
 
     protected override void OnTrigger(Aircraft ctx, FlightData data)
     {
-        if (data.Altitude < MinAltitudeFt) { SelfResolve(); return; }
+        if (data.Altitude < MinAltitudeFt)
+        {
+            SelfResolve();
+            return;
+        }
 
         _incapacitated = false;
 

@@ -7,7 +7,10 @@ public class AlertBufferHandler : IFlightEventHandler
 
     public static IReadOnlyList<string> RecentLogs
     {
-        get { lock (_lock) return _logs.ToArray(); }
+        get
+        {
+            lock (_lock) return _logs.ToArray();
+        }
     }
 
     public static void Clear()
@@ -43,7 +46,7 @@ public class AlertBufferHandler : IFlightEventHandler
             lock (_lock)
             {
                 _logs.Add($"[{evt.Timestamp:HH:mm:ss}] {formattedMessage}");
-                if (_logs.Count > 3) _logs.RemoveAt(0); // Trzyma tylko ostatnie 3 dla UI
+                if (_logs.Count > 3) _logs.RemoveAt(0);
             }
         }
     }

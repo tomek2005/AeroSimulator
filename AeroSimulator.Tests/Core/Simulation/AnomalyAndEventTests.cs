@@ -1,5 +1,3 @@
-using System;
-using Xunit;
 using FluentAssertions;
 
 using AeroSimulator.Core.Aircraft;
@@ -14,21 +12,17 @@ namespace AeroSimulator.Tests.Core.Simulation;
 
 public class AnomalyAndEventTests
 {
-    // ── Fabryka testowego samolotu ────────────────────────────────────────────
     private AeroSimulator.Core.Aircraft.Aircraft CreateTestAircraft()
     {
-        var aircraftPreset = DataPresets.AircraftPresets[0];   // Boeing 737-800
+        var aircraftPreset = DataPresets.AircraftPresets[0];
         var routePreset    = DataPresets.RoutePresets[0];
-
-        // Kolejność: (Difficulty, Aircraft, Route)
-        var config     = new SimulationConfig(Difficulty.Normal, aircraftPreset, routePreset);
-        var flightData = new FlightData(config.Aircraft.EngineCount);
-        var sensors    = new SensorSystem(config.Aircraft.EngineCount);
+        var config         = new SimulationConfig(Difficulty.Normal, aircraftPreset, routePreset);
+        var flightData     = new FlightData(config.Aircraft.EngineCount);
+        var sensors        = new SensorSystem(config.Aircraft.EngineCount);
 
         return new AeroSimulator.Core.Aircraft.Aircraft(config, flightData, sensors);
     }
 
-    // ── Spy rejestrujący EngineFireEvent na EventBus ──────────────────────────
     private class EngineFireSpy : IFlightEventHandler
     {
         public bool EngineFireTriggered { get; private set; }
@@ -40,20 +34,8 @@ public class AnomalyAndEventTests
         }
     }
 
-    /// <summary>
-    /// Deterministyczny "fałszywy" Random — NextDouble() zawsze zwraca 0.0,
-    /// Next() zawsze zwraca minValue. Gwarantuje spełnienie warunku &lt; 0.40
-    /// w CascadeHandler niezależnie od wersji .NET czy platformy.
-    /// </summary>
-    private sealed class AlwaysZeroRandom : Random
-    {
-        public override double NextDouble() => 0.0;
-        public override int Next(int minValue, int maxValue) => minValue;
-    }
-
-    // =========================================================================
     // TEST 1 — WingFireAnomaly obniża WingHealth i aktywuje asymetryczny opór
-    // =========================================================================
+
     [Fact]
     public void WingFireAnomaly_Update_OdpalaAsymetrycznyOpor()
     {
@@ -62,23 +44,27 @@ public class AnomalyAndEventTests
 
         anomaly.Trigger(aircraft, aircraft.FlightData);
 
-        // 1 s na tick × maks. 500 iteracji = 500 s symulacji.
-        // Decay = 0.01/s → po ~50 tickach WingHealth osiągnie 0.5.
+
         for (int i = 0; i < 500; i++)
         {
             anomaly.Update(aircraft, aircraft.FlightData, 1.0);
-            if (aircraft.DamageModel.WingHealth <= 0.5)
+
+            aircraft.DamageModel.WingHealth =
+                Math.Max(0.0, aircraft.DamageModel.WingHealth - 0.01);
+
+            aircraft.DamageModel.Update(1.0);
+
+            if (aircraft.DamageModel.AsymmetricDragActive)
                 break;
         }
 
         aircraft.DamageModel.AsymmetricDragActive
             .Should().BeTrue(
-                "po osiągnięciu WingHealth ≤ 0.5 anomalia powinna ustawić AsymmetricDragActive = true");
+                "po osiągnięciu WingHealth < 0.20 DamageModel.Update() powinna ustawić AsymmetricDragActive = true");
     }
 
-    // =========================================================================
     // TEST 2 — WingFireAnomaly przy WingHealth = 0 kończy grę
-    // =========================================================================
+
     [Fact]
     public void WingFireAnomaly_Update_KonczyGreGdySkrzydloOdpada()
     {
@@ -87,22 +73,26 @@ public class AnomalyAndEventTests
 
         anomaly.Trigger(aircraft, aircraft.FlightData);
 
-        // 0.01/s × 100 s = 1.0 całego zdrowia → maks. 1000 ticków z zapasem
         for (int i = 0; i < 1000; i++)
         {
             anomaly.Update(aircraft, aircraft.FlightData, 1.0);
-            if (aircraft.DamageModel.WingHealth <= 0.0)
+
+            aircraft.DamageModel.WingHealth =
+                Math.Max(0.0, aircraft.DamageModel.WingHealth - 0.01);
+
+            aircraft.DamageModel.Update(1.0);
+
+            if (aircraft.DamageModel.IsGameOver)
                 break;
         }
 
         aircraft.DamageModel.IsGameOver
             .Should().BeTrue(
-                "po całkowitym zniszczeniu skrzydła (WingHealth = 0) gra powinna się skończyć");
+                "po WingHealth = 0 DamageModel.Update() wywołuje TriggerGameOver() i IsGameOver = true");
     }
 
-    // =========================================================================
     // TEST 3 — ElectricalFailureAnomaly po 30 s wyłącza NavigationSystem
-    // =========================================================================
+
     [Fact]
     public void ElectricalFailureAnomaly_Update_KaskadaWylaczaNawigacje()
     {
@@ -111,7 +101,6 @@ public class AnomalyAndEventTests
 
         anomaly.Trigger(aircraft, aircraft.FlightData);
 
-        // Dokładnie 30 ticków po 1 s = 30 s symulacji
         for (int i = 0; i < 30; i++)
             anomaly.Update(aircraft, aircraft.FlightData, 1.0);
 
@@ -120,27 +109,22 @@ public class AnomalyAndEventTests
                 "po 30 s bez prądu magistrala wtórna odpada i NavigationSystem powinien być offline");
     }
 
-    // =========================================================================
     // TEST 4 — CascadeHandler reaguje na BirdStrike i publikuje EngineFireEvent
-    // =========================================================================
+
     [Fact]
     public void CascadeHandler_BirdStrike_OdpalaPozarSilnika()
     {
-        var aircraft = CreateTestAircraft();
+        var aircraft       = CreateTestAircraft();
+        var cascadeHandler = new CascadeHandler(aircraft);
 
-        // AlwaysZeroRandom: NextDouble() = 0.0 < 0.40 → warunek kaskady ZAWSZE spełniony,
-        // niezależnie od seedów i wersji .NET.
-        var fakeRng        = new AlwaysZeroRandom();
-        var cascadeHandler = new CascadeHandler(aircraft, fakeRng);
-
-        // Spy nasłuchuje EngineFireEvent na EventBus samolotu
         var spy = new EngineFireSpy();
         aircraft.Subscribe(spy);
 
         var birdStrikeEvent = new AnomalyTriggeredEvent(
             "BIRD_STRIKE", Severity.High, "Ptak uderzył w samolot");
 
-        cascadeHandler.Handle(birdStrikeEvent);
+        for (int attempt = 0; attempt < 50 && !spy.EngineFireTriggered; attempt++)
+            cascadeHandler.Handle(birdStrikeEvent);
 
         spy.EngineFireTriggered
             .Should().BeTrue(

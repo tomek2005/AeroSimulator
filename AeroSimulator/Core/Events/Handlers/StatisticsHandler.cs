@@ -17,7 +17,6 @@ public static class StatisticsHandler
 {
     public static FlightStatistics GenerateReport(IEnumerable<FlightEvent> eventLog)
     {
-        // Zastosowanie FP: Potok LINQ z użyciem funkcji Aggregate (tzw. Fold).
         return eventLog.Aggregate(
             seed: new FlightStatistics(0, 0, 0, 0, 0),
             func: (acc, evt) => new FlightStatistics(

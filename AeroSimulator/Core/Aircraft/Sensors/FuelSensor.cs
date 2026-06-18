@@ -1,12 +1,11 @@
 namespace AeroSimulator.Core.Aircraft.Sensors;
 
-/// <summary>
-/// Capacitance fuel quantity sensor. Reads <see cref="FlightData.FuelLevelKg"/>.
-/// A fuel leak may cause it to read slightly high (fuel sloshing).
-/// </summary>
+// Capacitance fuel quantity sensor. Reads FlightData.FuelLevelKg.
 public class FuelSensor : Sensor
 {
-    public FuelSensor() : base("FUEL-SNS") { }
+    public FuelSensor() : base("FUEL-SNS")
+    {
+    }
 
-    protected override double Scale => 0.05;    // very accurate when healthy
+    protected override double Scale => 0.05;
 }

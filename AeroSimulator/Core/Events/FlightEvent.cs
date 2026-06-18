@@ -10,7 +10,9 @@ public abstract record FlightEvent
     public Severity Level { get; init; } = Severity.Low;
     public string Message { get; init; } = string.Empty;
 
-    protected FlightEvent() { }
+    protected FlightEvent()
+    {
+    }
 
     protected FlightEvent(string message, string source, Severity level)
     {
